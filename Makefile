@@ -53,7 +53,7 @@ check-mypy: ##- Run static type-checking.
 .PHONY: check-mypy
 
 check-vulture: ##- Check for unsued code.
-	@vulture src vulture-whitelist.py
+	@vulture src tests vulture-whitelist.py
 .PHONY: check-vulture
 
 check-isort: ##- Check if imports are sorted correctly.
@@ -118,5 +118,5 @@ clean: ##- Remove all created cache/build files, test/coverage reports, and virt
 # ------------------------------------------------------------------------------
 
 build-vulture-whitelistpy:  ##- Regenerate vulture whitelist (list of currently seemingly unused code that will not be reported).
-	@vulture src --make-whitelist > vulture-whitelist.py || true
+	@vulture src tests --make-whitelist > vulture-whitelist.py || true
 .PHONY: build-vulture-whitelistpy
