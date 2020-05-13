@@ -16,7 +16,17 @@
 
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Type, TypeVar, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Mapping,
+    Optional,
+    Type,
+    TypeVar,
+    cast,
+    MutableMapping,
+)
 
 import toml
 from typing_extensions import Final
@@ -40,10 +50,16 @@ class _ConfigAttr:
         self.converter = converter
 
 
+class _ConfigSection:
+    pass
+
+
 if TYPE_CHECKING:
     ConfigAttr = Any
+    ConfigSection = Any
 else:
     ConfigAttr = _ConfigAttr
+    ConfigSection = _ConfigSection
 
 _T_Config = TypeVar("_T_Config", bound="Config")
 
@@ -52,40 +68,51 @@ class Config:
     # TODO: warn about unused attribute in config file.
 
     def __init__(self, **kwargs: Mapping[str, object]):
-        for name, attr in vars(type(self)).items():
-            if not isinstance(attr, _ConfigAttr):
-                continue
-
+        for name, meta in vars(type(self)).items():
             type_ = cast(Type[Any], self.__annotations__.get(name))
             raw_value = kwargs.get(name)
 
-            if raw_value is None:
-                if attr.required:
-                    raise ValueError(
-                        f"Config attribute {name} does not exist but is required."
-                    )
-                value = attr.default
+            if isinstance(meta, _ConfigAttr):
+                self._config_atttr(name, meta, type_, raw_value)
+            elif isinstance(meta, _ConfigSection):
+                self._config_section(name, meta, type_, raw_value)
 
-            elif attr.converter:
-                try:
-                    value = attr.converter(raw_value)
-                except Exception as e:
-                    raise ValueError(
-                        f"Config attribute {name} can not be converted to type {type_}."
-                        f" Raw value is '{raw_value}' of type {type(raw_value)}.",
-                        e,
-                    )
-
-            else:
-                value = raw_value
-
-            if not isinstance(value, get_origin(type_) or type_):
+    def _config_atttr(
+        self, name: str, attr: _ConfigAttr, type_: Type[Any], raw_value: object
+    ) -> None:
+        if raw_value is None:
+            if attr.required:
                 raise ValueError(
-                    f"Config attribute {name} is not of correct type {type_}."
+                    f"Config attribute {name} does not exist but is required."
+                )
+            value = attr.default
+
+        elif attr.converter:
+            try:
+                value = attr.converter(raw_value)
+            except Exception as e:
+                raise ValueError(
+                    f"Config attribute {name} can not be converted to type {type_}."
                     f" Raw value is '{raw_value}' of type {type(raw_value)}.",
+                    e,
                 )
 
-            setattr(self, name, value)
+        else:
+            value = raw_value
+
+        if not isinstance(value, get_origin(type_) or type_):
+            raise ValueError(
+                f"Config attribute {name} is not of correct type {type_}."
+                f" Raw value is '{raw_value}' of type {type(raw_value)}.",
+            )
+
+        setattr(self, name, value)
+
+    def _config_section(
+        self, name: str, _section: _ConfigSection, type_: Type[Any], raw_value: object
+    ) -> None:
+        assert isinstance(raw_value, Mapping)
+        setattr(self, name, type_(**raw_value))
 
     @classmethod
     def load(cls: Type[_T_Config], path: Path) -> _T_Config:
@@ -108,12 +135,13 @@ class Config:
         )
 
     def _to_dict(self) -> Mapping[str, object]:
-        result = {}
-        for name, attr in vars(type(self)).items():
-            if not isinstance(attr, _ConfigAttr):
-                continue
-            if attr.secret:
-                result[name] = "<secret>"
-            else:
-                result[name] = getattr(self, name)
+        result: MutableMapping[str, object] = {}
+        for name, meta in vars(type(self)).items():
+            if isinstance(meta, _ConfigAttr):
+                if meta.secret:
+                    result[name] = "<secret>"
+                else:
+                    result[name] = getattr(self, name)
+            elif isinstance(meta, _ConfigSection):
+                result[name] = cast(Config, getattr(self, name))._to_dict()
         return result

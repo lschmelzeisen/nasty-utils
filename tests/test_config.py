@@ -16,10 +16,10 @@
 
 from pathlib import Path
 
-from nasty_utils.config import Config, ConfigAttr
+from nasty_utils.config import Config, ConfigAttr, ConfigSection
 
 
-class TestConfig(Config):
+class TestInnerConfig(Config):
     host: str = ConfigAttr(default="localhost")
     port: int = ConfigAttr(default=9200)
     user: str = ConfigAttr(default="elastic")
@@ -27,11 +27,19 @@ class TestConfig(Config):
     path: Path = ConfigAttr(converter=Path)
 
 
+class TestConfig(Config):
+    name: str = ConfigAttr(required=True)
+    inner: TestInnerConfig = ConfigSection()
+
+
 def test_config(tmp_path: Path) -> None:
     config_file = tmp_path / "config.toml"
     with config_file.open("w", encoding="UTF-8") as fout:
         fout.write(
             """
+            name = "test"
+            
+            [inner]
             host = "localhost"
             port = 9200
             user = "test-user"
@@ -41,8 +49,9 @@ def test_config(tmp_path: Path) -> None:
         )
 
     config = TestConfig.load(config_file)
-    assert config.host == "localhost"
-    assert config.port == 9200
-    assert config.user == "test-user"
-    assert config.password == "test-pass"
-    assert config.path == Path("test.path")
+    assert config.name == "test"
+    assert config.inner.host == "localhost"
+    assert config.inner.port == 9200
+    assert config.inner.user == "test-user"
+    assert config.inner.password == "test-pass"
+    assert config.inner.path == Path("test.path")
