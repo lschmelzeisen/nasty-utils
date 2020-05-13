@@ -15,17 +15,18 @@
 #
 
 from logging import Logger, getLogger
+from os import environ
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Mapping,
+    MutableMapping,
     Optional,
     Type,
     TypeVar,
     cast,
-    MutableMapping,
 )
 
 import toml
@@ -122,17 +123,40 @@ class Config:
 
         return cls(**raw_config)
 
-    # TODO: implement get correct path
+    @classmethod
+    def find_file(cls, name: str, directory: str = ".") -> Path:
+        xdg_config_home = environ.get("XDG_CONFIG_HOME")
+        xdg_config_dirs = environ.get("XDG_CONFIG_DIRS")
+
+        config_dirs = [
+            Path.cwd() / ".config",
+            Path(xdg_config_home) if xdg_config_home is not None else None,
+            Path.home() / ".config",
+            Path(xdg_config_dirs) if xdg_config_dirs is not None else None,
+        ]
+
+        for config_dir in filter(None, config_dirs):
+            path = config_dir / directory / name
+            if path.exists():
+                return path
+
+        raise FileNotFoundError(
+            f"Could not find config file '{directory}/{name}'. Checked at the "
+            "following locations:\n"
+            + "\n".join("- " + str(config_dir) for config_dir in config_dirs)
+        )
+
+    @classmethod
+    def find_and_load_file(
+        cls: Type[_T_Config], name: str, directory: str = "."
+    ) -> _T_Config:
+        return cls.load(cls.find_file(name, directory))
 
     def __str__(self) -> str:
-        return (
-            type(self).__name__
-            + "{\n"
-            + "\n".join(
-                "  " + line for line in toml.dumps(self._to_dict()).splitlines()
-            )
-            + "\n}"
+        dict_str = "\n".join(
+            "  " + line for line in toml.dumps(self._to_dict()).splitlines()
         )
+        return f"{type(self).__name__}{{\n{dict_str}}}"
 
     def _to_dict(self) -> Mapping[str, object]:
         result: MutableMapping[str, object] = {}
