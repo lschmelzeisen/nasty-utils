@@ -53,7 +53,7 @@ class MyConfig(Config):
     inner: MyInnerConfig = ConfigSection()
 
 
-def test_config_load(tmp_path: Path) -> None:
+def test_load_from_config_file(tmp_path: Path) -> None:
     config_file = tmp_path / "config.toml"
     with config_file.open("w", encoding="UTF-8") as fout:
         fout.write(
@@ -75,7 +75,7 @@ def test_config_load(tmp_path: Path) -> None:
             """
         )
 
-    config = MyConfig.load(config_file)
+    config = MyConfig.load_from_config_file(config_file)
 
     for line in str(config).splitlines():
         _LOGGER.debug(line)
@@ -101,11 +101,11 @@ def test_config_load(tmp_path: Path) -> None:
     with config_file.open("w", encoding="UTF-8") as fout:
         toml.dump(config.serialize(), fout)
 
-    config2 = MyConfig.load(config_file)
+    config2 = MyConfig.load_from_config_file(config_file)
     assert config.serialize() == config2.serialize()
 
 
-def test_find_file(tmp_path: Path) -> None:
+def test_find_config_file(tmp_path: Path) -> None:
     cwd = Path.cwd()
     try:
         chdir(tmp_path)
@@ -115,13 +115,13 @@ def test_find_file(tmp_path: Path) -> None:
 
             for name in ["conf", "myconfig.toml"]:
                 with pytest.raises(FileNotFoundError):
-                    Config.find_file(name, directory)
+                    Config.find_config_file(name, directory)
 
                 with (tmp_path / ".config" / directory / name).open(
                     "w", encoding="UTF-8"
                 ):
                     pass
 
-        assert Config.find_file(name, directory)
+        assert Config.find_config_file(name, directory)
     finally:
         chdir(cwd)

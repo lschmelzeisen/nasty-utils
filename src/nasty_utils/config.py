@@ -45,8 +45,8 @@ class _ConfigAttr:
         required: bool = False,
         default: Optional[object] = None,
         secret: bool = False,
-        deserializer: Optional[Callable[[object], object]] = None,
-        serializer: Optional[Callable[[object], object]] = None,
+        deserializer: Optional[Callable[[Any], object]] = None,
+        serializer: Optional[Callable[[Any], object]] = None,
     ):
         self.required = required
         self.default = default
@@ -72,7 +72,7 @@ _T_Config = TypeVar("_T_Config", bound="Config")
 class Config:
     # TODO: warn about unused attribute in config file.
 
-    def __init__(self, **kwargs: Mapping[str, object]):
+    def __init__(self, **kwargs: object):
         for name, meta in vars(type(self)).items():
             type_ = cast(Type[Any], self.__annotations__.get(name))
             raw_value = kwargs.get(name)
@@ -115,7 +115,11 @@ class Config:
         type_origin = typing_inspect.get_origin(type_)
         type_args = typing_inspect.get_args(type_, evaluate=True)
 
-        if type_origin and issubclass(type_origin, Sequence):
+        if (
+            type_origin
+            and type_origin is not Union  # type: ignore
+            and issubclass(type_origin, Sequence)
+        ):
             if not isinstance(raw_value, Sequence):
                 raise ValueError(f"Expected a sequence but found a {type(raw_value)}.")
 
@@ -126,7 +130,11 @@ class Config:
                 for x in raw_value
             ]
 
-        elif type_origin and issubclass(type_origin, Mapping):
+        elif (
+            type_origin
+            and type_origin is not Union  # type: ignore
+            and issubclass(type_origin, Mapping)
+        ):
             if not isinstance(raw_value, Mapping):
                 raise ValueError(f"Expected a Mapping but found a {type(raw_value)}.")
 
@@ -150,19 +158,24 @@ class Config:
     def _config_section(
         self, name: str, _section: _ConfigSection, type_: Type[Any], raw_value: object
     ) -> None:
-        assert isinstance(raw_value, Mapping)
+        if not isinstance(raw_value, Mapping):
+            raise ValueError(
+                f"Expected {name} to be a TOML-table, not a {type(raw_value)}."
+            )
         setattr(self, name, type_(**raw_value))
 
     @classmethod
-    def load(cls: Type[_T_Config], path: Path) -> _T_Config:
-        _LOGGER.debug(f"Loading {cls.__name__} from '{path}'...")
-        with path.open(encoding="UTF-8") as fin:
-            raw_config = toml.load(fin)
-
-        return cls(**raw_config)
+    def load_from_str(cls: Type[_T_Config], toml_str: str) -> _T_Config:
+        return cls(**toml.loads(toml_str))
 
     @classmethod
-    def find_file(cls, name: str, directory: str = ".") -> Path:
+    def load_from_config_file(cls: Type[_T_Config], config_file: Path) -> _T_Config:
+        _LOGGER.debug(f"Loading {cls.__name__} from '{config_file}'...")
+        with config_file.open(encoding="UTF-8") as fin:
+            return cls.load_from_str(fin.read())
+
+    @classmethod
+    def find_config_file(cls, name: str, directory: str = ".") -> Path:
         xdg_config_home = environ.get("XDG_CONFIG_HOME")
         xdg_config_dirs = environ.get("XDG_CONFIG_DIRS")
 
@@ -185,10 +198,10 @@ class Config:
         )
 
     @classmethod
-    def find_and_load_file(
+    def find_and_load_from_config_file(
         cls: Type[_T_Config], name: str, directory: str = "."
     ) -> _T_Config:
-        return cls.load(cls.find_file(name, directory))
+        return cls.load_from_config_file(cls.find_config_file(name, directory))
 
     def __str__(self) -> str:
         dict_str = "\n".join(

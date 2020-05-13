@@ -14,12 +14,11 @@
 # limitations under the License.
 #
 
+from typing import Type, TypeVar
 
-from _pytest.config import Config
-
-from nasty_utils.logging import LoggingConfig
+_T_type = TypeVar("_T_type")
 
 
-def pytest_configure(config: Config) -> None:
-    log_config = LoggingConfig(logging={"level": "DEBUG"})
-    log_config.setup_pytest_logging(config)
+def checked_cast(type_: Type[_T_type], value: object) -> _T_type:
+    assert isinstance(value, type_)
+    return value
