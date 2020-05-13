@@ -27,6 +27,7 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
+    Union,
     cast,
 )
 
@@ -44,12 +45,14 @@ class _ConfigAttr:
         required: bool = False,
         default: Optional[object] = None,
         secret: bool = False,
-        converter: Optional[Callable[[object], object]] = None,
+        deserializer: Optional[Callable[[object], object]] = None,
+        serializer: Optional[Callable[[object], object]] = None,
     ):
         self.required = required
         self.default = default
         self.secret = secret
-        self.converter = converter
+        self.deserializer = deserializer or (lambda x: x)
+        self.serializer = serializer or (lambda x: x)
 
 
 class _ConfigSection:
@@ -88,32 +91,61 @@ class Config:
                     f"Config attribute {name} does not exist but is required."
                 )
             value = attr.default
-
-        elif attr.converter:
+        else:
             try:
-                value = attr.converter(raw_value)
+                value = self._deserialize_and_verify_type(
+                    raw_value, attr.deserializer, type_
+                )
             except Exception as e:
                 raise ValueError(
-                    f"Config attribute {name} can not be converted to type {type_}."
+                    f"Config attribute {name} can not be deserialized to {type_}."
                     f" Raw value is '{raw_value}' of type {type(raw_value)}.",
                     e,
                 )
 
-        else:
-            value = raw_value
-
-        types: Sequence[Type[Any]] = [
-            *typing_inspect.get_args(type_, evaluate=True),
-            typing_inspect.get_origin(type_),
-            type_,
-        ]
-        if not any(isinstance(value, t) for t in filter(None, types)):
-            raise ValueError(
-                f"Config attribute {name} is not of correct type {type_}."
-                f" Raw value is '{raw_value}' of type {type(raw_value)}.",
-            )
-
         setattr(self, name, value)
+
+    @classmethod
+    def _deserialize_and_verify_type(
+        cls,
+        raw_value: object,
+        deserializer: Callable[[object], object],
+        type_: Type[Any],
+    ) -> object:
+        type_origin = typing_inspect.get_origin(type_)
+        type_args = typing_inspect.get_args(type_, evaluate=True)
+
+        if type_origin and issubclass(type_origin, Sequence):
+            if not isinstance(raw_value, Sequence):
+                raise ValueError(f"Expected a sequence but found a {type(raw_value)}.")
+
+            inner_type = type_args[0] if len(type_args) else object
+
+            return [
+                cls._deserialize_and_verify_type(x, deserializer, inner_type)
+                for x in raw_value
+            ]
+
+        elif type_origin and issubclass(type_origin, Mapping):
+            if not isinstance(raw_value, Mapping):
+                raise ValueError(f"Expected a Mapping but found a {type(raw_value)}.")
+
+            if len(type_args) and type_args[0] is not str:
+                raise TypeError()
+            inner_type = type_args[1] if len(type_args) else object
+
+            return {
+                k: cls._deserialize_and_verify_type(v, deserializer, inner_type)
+                for k, v in raw_value.items()
+            }
+
+        value = deserializer(raw_value)
+
+        valid_types = type_args if type_origin is Union else (type_,)  # type: ignore
+        if not any(isinstance(value, t) for t in valid_types):
+            raise ValueError(f"Deserialized value f{value} is not of type {type_}.")
+
+        return value
 
     def _config_section(
         self, name: str, _section: _ConfigSection, type_: Type[Any], raw_value: object
@@ -160,18 +192,33 @@ class Config:
 
     def __str__(self) -> str:
         dict_str = "\n".join(
-            "  " + line for line in toml.dumps(self._to_dict()).splitlines()
+            "  " + line for line in toml.dumps(self.serialize()).splitlines()
         )
-        return f"{type(self).__name__}{{\n{dict_str}}}"
+        return f"{type(self).__name__}{{\n{dict_str}\n}}"
 
-    def _to_dict(self) -> Mapping[str, object]:
+    def serialize(self) -> Mapping[str, object]:
         result: MutableMapping[str, object] = {}
         for name, meta in vars(type(self)).items():
             if isinstance(meta, _ConfigAttr):
-                if meta.secret:
-                    result[name] = "<secret>"
-                else:
-                    result[name] = getattr(self, name)
+                result[name] = (
+                    self._serialize_value(getattr(self, name), meta.serializer)
+                    if not meta.secret
+                    else "<secret>"
+                )
+
             elif isinstance(meta, _ConfigSection):
-                result[name] = cast(Config, getattr(self, name))._to_dict()
+                result[name] = cast(Config, getattr(self, name)).serialize()
         return result
+
+    @classmethod
+    def _serialize_value(
+        cls, value: object, serializer: Callable[[object], object]
+    ) -> object:
+        if isinstance(value, Sequence) and not isinstance(value, str):
+            return [cls._serialize_value(x, serializer) for x in value]
+        elif isinstance(value, Mapping):
+            return {k: cls._serialize_value(v, serializer) for k, v in value.items()}
+        elif value is None:
+            return None
+        else:
+            return serializer(value)
