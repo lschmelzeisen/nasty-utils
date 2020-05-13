@@ -24,14 +24,15 @@ from typing import (
     Mapping,
     MutableMapping,
     Optional,
+    Sequence,
     Type,
     TypeVar,
     cast,
 )
 
 import toml
+import typing_inspect
 from typing_extensions import Final
-from typing_inspect import get_origin
 
 _LOGGER: Final[Logger] = getLogger(__name__)
 
@@ -101,7 +102,12 @@ class Config:
         else:
             value = raw_value
 
-        if not isinstance(value, get_origin(type_) or type_):
+        types: Sequence[Type[Any]] = [
+            *typing_inspect.get_args(type_, evaluate=True),
+            typing_inspect.get_origin(type_),
+            type_,
+        ]
+        if not any(isinstance(value, t) for t in filter(None, types)):
             raise ValueError(
                 f"Config attribute {name} is not of correct type {type_}."
                 f" Raw value is '{raw_value}' of type {type(raw_value)}.",

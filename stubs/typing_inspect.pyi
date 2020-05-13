@@ -14,6 +14,9 @@
 # limitations under the License.
 #
 
-from typing import Any, Type
+from typing import Any, Optional, Tuple, Type
 
 def get_origin(tp: Type[Any]) -> Type[Any]: ...
+def get_args(
+    tp: Type[Any], evaluate: Optional[bool] = ...
+) -> Tuple[Type[Any], ...]: ...

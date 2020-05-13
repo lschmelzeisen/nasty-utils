@@ -16,6 +16,7 @@
 
 from os import chdir
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -32,6 +33,7 @@ class MyInnerConfig(Config):
 
 class MyConfig(Config):
     name: str = ConfigAttr(required=True)
+    age: Optional[int] = ConfigAttr()
     inner: MyInnerConfig = ConfigSection()
 
 
@@ -53,6 +55,7 @@ def test_config(tmp_path: Path) -> None:
 
     config = MyConfig.load(config_file)
     assert config.name == "test"
+    assert config.age is None
     assert config.inner.host == "localhost"
     assert config.inner.port == 9200
     assert config.inner.user == "test-user"
