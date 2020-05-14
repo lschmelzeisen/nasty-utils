@@ -14,6 +14,15 @@
 # limitations under the License.
 #
 
-from setuptools import setup
+from typing import Any, Callable, Sequence, TypeVar, Union
 
-setup()
+_T_func = TypeVar("_T_func", bound=Callable[..., Any])
+
+def session(
+    python: Union[str, bool, Sequence[str]] = ..., reuse_env: bool = ...
+) -> Callable[[_T_func], _T_func]: ...
+
+class options:  # noqa: N801
+    error_on_external_run = True
+    reuse_existing_virtualenvs = True
+    stop_on_first_error = True

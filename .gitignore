@@ -12,7 +12,7 @@ dist/
 # Unit test / coverage reports
 .coverage*
 .pytest_cache/
-.tox
+.nox
 tests-coverage
 tests-report.html
 

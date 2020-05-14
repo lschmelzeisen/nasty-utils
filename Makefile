@@ -25,12 +25,12 @@ test-pytest: ##- Run all tests in the currently active environment.
 	@coverage report
 .PHONY: test-pytest
 
-test-tox: ##- Run all tests against all supported Python versions (in separate environments).
+test-nox: ##- Run all tests against all supported Python versions (in separate environments).
 	@coverage erase
-	@tox
+	@nox
 	@coverage html --dir tests-coverage
 	@coverage report
-.PHONY: test-tox
+.PHONY: test-nox
 
 # ------------------------------------------------------------------------------
 
@@ -112,7 +112,7 @@ publish-twine-upload: ##- Upload to PyPI.
 # ------------------------------------------------------------------------------
 
 clean: ##- Remove all created cache/build files, test/coverage reports, and virtual environments.
-	@rm -rf .coverage* .eggs .mypy_cache .pytest_cache .tox .venv build dist src/*/version.py src/*.egg-info src/.mypy_cache tests-coverage tests-report.html
+	@rm -rf .coverage* .eggs .mypy_cache .pytest_cache .nox .venv build dist src/*/version.py src/*.egg-info src/.mypy_cache tests-coverage tests-report.html
 	@find . -type d -name __pycache__ -exec rm -r {} +
 .PHONY: clean
 

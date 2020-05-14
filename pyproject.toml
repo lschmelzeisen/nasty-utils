@@ -50,14 +50,3 @@ use_parentheses = true
 [tool.setuptools_scm]
 write_to = "src/nasty_utils/_version.py"
 write_to_template = "__version__ = \"{version}\"\n"
-
-[tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = py36, py37, py38, pypy3
-isolated_builds = true
-
-[testenv]
-commands = pytest --cov --cov-report= --cov-context test --cov-append --html {envdir}/tests-report.html --self-contained-html
-extras = test
-"""

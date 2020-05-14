@@ -14,6 +14,20 @@
 # limitations under the License.
 #
 
-from setuptools import setup
+from typing import Mapping, Optional
 
-setup()
+class Session:
+    def install(
+        self,
+        *args: str,
+        env: Optional[Mapping[str, str]] = ...,
+        silence: bool = ...,
+        external: bool = ...,
+    ) -> None: ...
+    def run(
+        self,
+        *args: str,
+        env: Optional[Mapping[str, str]] = ...,
+        silence: bool = ...,
+        external: bool = ...,
+    ) -> None: ...
