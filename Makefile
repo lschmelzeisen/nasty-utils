@@ -45,15 +45,15 @@ check-autoflake: ##- Check for unused imports and variables.
 .PHONY: check-autoflake
 
 check-flake8: ##- Run linters.
-	@flake8 src stubs tests setup.py vulture-whitelist.py
+	@flake8 src tests *.py
 .PHONY: check-flake8
 
 check-mypy: ##- Run static type-checking.
-	@mypy . src
+	@mypy .
 .PHONY: check-mypy
 
 check-vulture: ##- Check for unsued code.
-	@vulture src tests vulture-whitelist.py
+	@vulture src tests *.py
 .PHONY: check-vulture
 
 check-isort: ##- Check if imports are sorted correctly.
@@ -71,7 +71,6 @@ format: format-licenseheaders format-autoflake format-isort format-black ##- Aut
 
 format-licenseheaders: ##- Prepend license headers to all code files.
 	@licenseheaders --tmpl LICENSE.header --years 2019-2020 --owner "Lukas Schmelzeisen" --dir src
-	@licenseheaders --tmpl LICENSE.header --years 2019-2020 --owner "Lukas Schmelzeisen" --dir stubs --additional-extensions python=.pyi
 	@licenseheaders --tmpl LICENSE.header --years 2019-2020 --owner "Lukas Schmelzeisen" --dir tests
 .PHONY: format-licenseheaders
 
@@ -112,12 +111,12 @@ publish-twine-upload: ##- Upload to PyPI.
 # ------------------------------------------------------------------------------
 
 clean: ##- Remove all created cache/build files, test/coverage reports, and virtual environments.
-	@rm -rf .coverage* .eggs .mypy_cache .pytest_cache .nox .venv build dist src/*/version.py src/*.egg-info src/.mypy_cache tests-coverage tests-report.html
+	@rm -rf .coverage* .eggs .mypy_cache .pytest_cache .nox .venv build dist src/*/_version.py src/*.egg-info tests-coverage tests-report.html
 	@find . -type d -name __pycache__ -exec rm -r {} +
 .PHONY: clean
 
 # ------------------------------------------------------------------------------
 
 build-vulture-whitelistpy:  ##- Regenerate vulture whitelist (list of currently seemingly unused code that will not be reported).
-	@vulture src tests --make-whitelist > vulture-whitelist.py || true
+	@vulture src tests *.py --make-whitelist > vulture-whitelist.py || true
 .PHONY: build-vulture-whitelistpy
