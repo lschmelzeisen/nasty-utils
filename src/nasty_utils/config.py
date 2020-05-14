@@ -180,7 +180,7 @@ class Config:
         xdg_config_dirs = environ.get("XDG_CONFIG_DIRS")
 
         config_dirs = [
-            Path.cwd() / ".config",
+            Path(".config"),
             Path(xdg_config_home) if xdg_config_home is not None else None,
             Path.home() / ".config",
             Path(xdg_config_dirs) if xdg_config_dirs is not None else None,
