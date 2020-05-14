@@ -51,8 +51,11 @@ class _ConfigAttr:
         self.required = required
         self.default = default
         self.secret = secret
-        self.deserializer = deserializer or (lambda x: x)
-        self.serializer = serializer or (lambda x: x)
+        self.deserializer = deserializer
+        self.serializer = serializer
+
+        if self.required and self.default:
+            raise ValueError("Can not use required together with default.")
 
 
 class _ConfigSection:
@@ -74,7 +77,15 @@ class Config:
 
     def __init__(self, **kwargs: object):
         for name, meta in vars(type(self)).items():
-            type_ = cast(Type[Any], self.__annotations__.get(name))
+            if not (isinstance(meta, _ConfigAttr) or isinstance(meta, _ConfigSection)):
+                continue
+
+            type_ = cast(Optional[Type[Any]], self.__annotations__.get(name))
+            if type_ is None:
+                raise TypeError(
+                    "Type annotation is required to use ConfigAttr()/ConfigSection(). "
+                    f"It is missing for {name}."
+                )
             raw_value = kwargs.get(name)
 
             if isinstance(meta, _ConfigAttr):
@@ -94,7 +105,7 @@ class Config:
         else:
             try:
                 value = self._deserialize_and_verify_type(
-                    raw_value, attr.deserializer, type_
+                    raw_value, attr.deserializer or (lambda x: x), type_
                 )
             except Exception as e:
                 raise ValueError(
@@ -151,7 +162,9 @@ class Config:
 
         valid_types = type_args if type_origin is Union else (type_,)  # type: ignore
         if not any(isinstance(value, t) for t in valid_types):
-            raise ValueError(f"Deserialized value f{value} is not of type {type_}.")
+            raise ValueError(
+                f"Deserialized value {repr(value)} is not of type {type_}."
+            )
 
         return value
 
@@ -214,7 +227,9 @@ class Config:
         for name, meta in vars(type(self)).items():
             if isinstance(meta, _ConfigAttr):
                 result[name] = (
-                    self._serialize_value(getattr(self, name), meta.serializer)
+                    self._serialize_value(
+                        getattr(self, name), meta.serializer or (lambda x: x)
+                    )
                     if not meta.secret
                     else "<secret>"
                 )

@@ -36,19 +36,19 @@ _LOG_LEVELS: Final[Sequence[str]] = [
 ]
 
 
-def _level_num(level: str) -> int:
-    level = level.upper()
-    if level not in _LOG_LEVELS:
+def log_level_num(log_level: str) -> int:
+    log_level = log_level.upper()
+    if log_level not in _LOG_LEVELS:
         raise ValueError(
-            f"Not a valid log level: '{level}'. Valid values are: "
+            f"Not a valid log level: '{log_level}'. Valid values are: "
             f"{', '.join(_LOG_LEVELS)}."
         )
-    return checked_cast(int, getattr(logging, level))
+    return checked_cast(int, getattr(logging, log_level))
 
 
-def _level(level_num: int) -> str:
+def log_level(log_level_num: int) -> str:
     for level in _LOG_LEVELS:
-        if getattr(logging, level) == level_num:
+        if getattr(logging, level) == log_level_num:
             return level
     raise ValueError(f"Not a valid log level number: {'level_num'}.")
 
@@ -57,9 +57,11 @@ class LoggingConfigSection(Config):
     format: str = ConfigAttr(
         default="%(asctime)s %(levelname)1.1s [ %(name)-31s ] %(message)s"
     )
-    level: int = ConfigAttr(default="INFO", deserializer=_level_num, serializer=_level)
+    level: int = ConfigAttr(
+        default="INFO", deserializer=log_level_num, serializer=log_level
+    )
     loggers: Mapping[str, int] = ConfigAttr(
-        default={}, deserializer=_level_num, serializer=_level
+        default={}, deserializer=log_level_num, serializer=log_level
     )
 
 
@@ -75,11 +77,11 @@ class LoggingConfig(Config):
         logging.addLevelName(logging.WARNING, "WARN")
         logging.addLevelName(logging.CRITICAL, "CRIT")
 
-        pytest_config.option.log_level = _level(self.logging.level)
+        pytest_config.option.log_level = log_level(self.logging.level)
         pytest_config.option.log_format = self.logging.format
 
         # When running pytest from PyCharm enable live cli logging so that we can click
         # a test case and see (only) its log output. When not using PyCharm, this
         # functionality is available via the html report.
         if pytest_config.pluginmanager.hasplugin("teamcity.pytest_plugin"):
-            pytest_config.option.log_cli_level = _level(self.logging.level)
+            pytest_config.option.log_cli_level = log_level(self.logging.level)

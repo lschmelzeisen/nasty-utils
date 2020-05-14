@@ -34,7 +34,6 @@ quiet = true
         # Hard to test missing import code.
         "except ImportError",
     ]
-    omit = ["src/__main__.py"]
     skip_covered = true
     skip_empty = true
 

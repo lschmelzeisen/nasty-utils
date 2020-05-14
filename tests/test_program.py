@@ -18,14 +18,16 @@
 from contextlib import contextmanager
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional, cast
 
 import pytest
 from overrides import overrides
 from typing_extensions import Final
 
-from nasty_utils.logging import LoggingConfig, _level_num
-from nasty_utils.program import Command, CommandMeta, Program, ProgramMeta
+from nasty_utils.logging import LoggingConfig, log_level_num
+from nasty_utils.program.argument import Argument, Flag
+from nasty_utils.program.command import Command, CommandMeta
+from nasty_utils.program.program import Program, ProgramMeta
 from tests._util.path import change_dir
 
 _LOGGER: Final[Logger] = getLogger(__name__)
@@ -78,10 +80,22 @@ class MyProgram(Program[LoggingConfig]):
 
 
 class QqqCommand(Command[None]):
+    in_file: Path = Argument(
+        name="in-file",
+        short_name="i",
+        metavar="FILE",
+        desc="Input file.",
+        required=True,
+        deserializer=Path,
+    )
+    out_file: Optional[Path] = Argument(
+        name="out-file", metavar="File", desc="Output file", deserializer=Path
+    )
+
     @classmethod
     @overrides
     def meta(cls) -> CommandMeta:
-        return CommandMeta(name="qqq", aliases=["q"], desc="qqq desc")
+        return CommandMeta(name="qqq", desc="qqq desc")
 
 
 class NoConfigProgram(Program[None]):
@@ -99,7 +113,9 @@ class NoConfigProgram(Program[None]):
         )
 
 
-class NoCommandProgramm(Program[None]):
+class NoCommandProgram(Program[None]):
+    verbose: bool = Flag(name="verbose", desc="Verbose desc.")
+
     @classmethod
     @overrides
     def meta(cls) -> ProgramMeta[None]:
@@ -136,20 +152,48 @@ def test_program_config(tmp_path: Path) -> None:
     with change_dir(tmp_path / "a") as path:
         with _write_logging_config(path / ".config" / "myprog.toml", "DEBUG"):
             prog = MyProgram("f")
-            assert prog._config.logging.level == _level_num("DEBUG")
+            assert prog._config.logging.level == log_level_num("DEBUG")
 
     with change_dir(tmp_path / "b") as path:
         with _write_logging_config(path / "myprog.toml", "WARN"):
             prog = MyProgram("f", "--config", "myprog.toml")
-            assert prog._config.logging.level == _level_num("WARN")
+            assert prog._config.logging.level == log_level_num("WARN")
 
     with change_dir(tmp_path / "c") as path:
         with pytest.raises(FileNotFoundError):
             MyProgram("f")
 
-    prog = NoConfigProgram("q")
+    prog = NoConfigProgram("qqq", "-i", "file.txt")
     assert prog._config is None
 
 
 def test_no_command_program() -> None:
-    NoCommandProgramm()
+    NoCommandProgram()
+
+
+def test_program_help() -> None:
+    with pytest.raises(SystemExit) as e:
+        NoConfigProgram("qqq", "-h")
+    assert e.value.code == 0
+
+    with pytest.raises(SystemExit) as e:
+        NoCommandProgram("-h")
+    assert e.value.code == 0
+
+
+def test_program_arguments() -> None:
+    prog: Program[Any]
+
+    prog = NoConfigProgram("qqq", "-i", "file.txt")
+    assert cast(QqqCommand, prog._command).in_file == Path("file.txt")
+    assert cast(QqqCommand, prog._command).out_file is None
+
+    prog = NoConfigProgram("qqq", "-i", "file.txt", "--out-file", "file.csv")
+    assert cast(QqqCommand, prog._command).in_file == Path("file.txt")
+    assert cast(QqqCommand, prog._command).out_file == Path("file.csv")
+
+    prog = NoCommandProgram()
+    assert prog.verbose is False
+
+    prog = NoCommandProgram("--verbose")
+    assert prog.verbose is True
