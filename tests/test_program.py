@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Iterator, Optional, cast
 
 import pytest
+from _pytest.capture import CaptureFixture
 from overrides import overrides
 from typing_extensions import Final
 
@@ -174,14 +175,21 @@ def test_no_command_program() -> None:
     NoCommandProgram()
 
 
-def test_program_help() -> None:
+def test_program_help(capsys: CaptureFixture) -> None:
     with pytest.raises(SystemExit) as e:
         NoConfigProgram("qqq", "-h")
     assert e.value.code == 0
 
+    for line in capsys.readouterr().out.splitlines():
+        _LOGGER.info(line)
+
     with pytest.raises(SystemExit) as e:
         NoCommandProgram("-h")
     assert e.value.code == 0
+
+    _LOGGER.info(80 * "-")
+    for line in capsys.readouterr().out.splitlines():
+        _LOGGER.info(line)
 
 
 def test_program_arguments() -> None:
