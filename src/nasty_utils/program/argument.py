@@ -17,6 +17,12 @@
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
 
+class ArgumentGroup:
+    def __init__(self, *, name: str, desc: str):
+        self.name = name
+        self.desc = desc
+
+
 class _Flag:
     def __init__(
         self,

@@ -35,7 +35,7 @@ import typing_inspect
 from nasty_utils._util.argparse_ import SingleMetavarHelpFormatter
 from nasty_utils.config import Config
 from nasty_utils.logging import LoggingConfig
-from nasty_utils.program.argument import _Argument, _Flag
+from nasty_utils.program.argument import ArgumentGroup, _Argument, _Flag
 from nasty_utils.program.command import Command
 from nasty_utils.typing import checked_cast
 
@@ -130,6 +130,9 @@ class Program(Generic[_T_Config]):
             )
 
         for name, meta in vars(argument_holder).items():
+            if isinstance(meta, ArgumentGroup):
+                g = argparser.add_argument_group(title=meta.name, description=meta.desc)
+
             if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
                 continue
 

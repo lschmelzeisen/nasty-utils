@@ -25,7 +25,7 @@ from overrides import overrides
 from typing_extensions import Final
 
 from nasty_utils.logging import LoggingConfig, log_level_num
-from nasty_utils.program.argument import Argument, Flag
+from nasty_utils.program.argument import Argument, ArgumentGroup, Flag
 from nasty_utils.program.command import Command, CommandMeta
 from nasty_utils.program.program import Program, ProgramMeta
 from tests._util.path import change_dir
@@ -80,6 +80,9 @@ class MyProgram(Program[LoggingConfig]):
 
 
 class QqqCommand(Command[None]):
+    _in_out_group = ArgumentGroup(
+        name="Input/Output", desc="Input and output arguments."
+    )
     in_file: Path = Argument(
         name="in-file",
         short_name="i",
