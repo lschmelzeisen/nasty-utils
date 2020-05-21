@@ -43,7 +43,7 @@ _T_Config = TypeVar("_T_Config", bound=Optional[Config])
 
 
 class ArgumentGroup:
-    def __init__(self, *, name: str, desc: str):
+    def __init__(self, *, name: str, desc: Optional[str] = None):
         self.name = name
         self.desc = desc
 
