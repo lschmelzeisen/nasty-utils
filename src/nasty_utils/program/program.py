@@ -34,10 +34,10 @@ import typing_inspect
 
 from nasty_utils._util.argparse_ import SingleMetavarHelpFormatter
 from nasty_utils.config import Config
-from nasty_utils.logging import LoggingConfig
+from nasty_utils.logging_ import LoggingConfig
 from nasty_utils.program.argument import ArgumentGroup, _Argument, _Flag
 from nasty_utils.program.command import Command
-from nasty_utils.typing import checked_cast
+from nasty_utils.typing_ import checked_cast
 
 _T_Config = TypeVar("_T_Config", bound=Optional[Config])
 

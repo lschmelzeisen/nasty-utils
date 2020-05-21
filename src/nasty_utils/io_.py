@@ -32,6 +32,8 @@ _LOGGER: Final[Logger] = getLogger(__name__)
 
 
 class DecompressingTextIOWrapper(TextIOWrapper):
+    # TODO: implement write access
+
     def __init__(
         self,
         path: Path,

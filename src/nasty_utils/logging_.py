@@ -22,7 +22,7 @@ from _pytest.config import Config as PytestConfig
 from typing_extensions import Final
 
 from nasty_utils.config import Config, ConfigAttr, ConfigSection
-from nasty_utils.typing import checked_cast
+from nasty_utils.typing_ import checked_cast
 
 _LOG_LEVELS: Final[Sequence[str]] = [
     "CRITICAL",
