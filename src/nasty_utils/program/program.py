@@ -76,7 +76,9 @@ class Program(Generic[_T_Config]):
         self._args = self._load_args()
         self._config = self._load_config()
         self._parse_args()
+        self.run()
 
+    def run(self) -> None:
         if self._command:
             self._command.run()
 
