@@ -11,6 +11,7 @@ venv: ##- Create a new Python virtual environment in .venv/ (need to activate ma
 
 devinstall: ##- Install the project in editable mode with all test and dev dependencies (in the currently active environment).
 	@pip install --upgrade pip setuptools wheel
+	@grep git+git setup.cfg | awk '{ gsub (" ", "", $$0); print}' | xargs -r pip install --upgrade
 	@pip install -e .[test,dev]
 .PHONY: devinstall
 
