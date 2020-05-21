@@ -163,7 +163,7 @@ def test_program_config(tmp_path: Path) -> None:
             prog = MyProgram("f", "--config", "myprog.toml")
             assert prog._config.logging.level == log_level_num("WARN")
 
-    with change_dir(tmp_path / "c") as path:
+    with change_dir(tmp_path / "c"):
         with pytest.raises(FileNotFoundError):
             MyProgram("f")
 
