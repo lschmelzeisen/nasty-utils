@@ -267,8 +267,8 @@ class Program(Generic[_T_Config]):
         subparsers = argparser.add_subparsers(
             title=title[0].upper() + title[1:] + "s",
             description=(
-                "The following commands (and abbreviations) are available, each "
-                "supporting the help option."
+                "The following commands  are available, each supporting the --help "
+                "option."
             ),
             metavar="<" + title.upper() + ">",
             prog=name,
@@ -280,6 +280,7 @@ class Program(Generic[_T_Config]):
             subparser = subparsers.add_parser(
                 name=subcommand_meta.name,
                 aliases=subcommand_meta.aliases or [],
+                description=subcommand_meta.desc,
                 help=subcommand_meta.desc,
                 add_help=False,
                 formatter_class=SingleMetavarHelpFormatter,
