@@ -53,7 +53,7 @@ def log_level(log_level_num: int) -> str:
     raise ValueError(f"Not a valid log level number: {'level_num'}.")
 
 
-class LoggingConfigSection(Config):
+class _LoggingSection(Config):
     format: str = ConfigAttr(
         default="%(asctime)s %(levelname)1.1s [ %(name)-31s ] %(message)s"
     )
@@ -66,7 +66,7 @@ class LoggingConfigSection(Config):
 
 
 class LoggingConfig(Config):
-    logging: LoggingConfigSection = ConfigSection()
+    logging: _LoggingSection = ConfigSection()
 
     def setup_logging(self) -> None:
         logging.basicConfig(format=self.logging.format, level=self.logging.level)
