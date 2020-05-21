@@ -33,7 +33,7 @@ class MyInnerConfig(Config):
     port: int = ConfigAttr(default=9200)
     user: str = ConfigAttr(default="elastic")
     password: str = ConfigAttr(default="", secret=True)
-    path: Path = ConfigAttr(deserializer=Path, serializer=str)
+    path: Optional[Path] = ConfigAttr(deserializer=Path, serializer=str)
 
 
 class MyConfig(Config):
@@ -51,6 +51,10 @@ class MyConfig(Config):
     nested_map: Mapping[str, Mapping[str, int]] = ConfigAttr(required=True)
 
     inner: MyInnerConfig = ConfigSection()
+
+
+class InheritingConfig(MyConfig):
+    foo: str = ConfigAttr(required=True)
 
 
 def test_load_from_config_file(tmp_path: Path) -> None:
@@ -125,3 +129,21 @@ def test_find_config_file(tmp_path: Path) -> None:
                 assert Config.find_config_file(name, directory)
     finally:
         chdir(cwd)
+
+
+def test_inheriting_config() -> None:
+    config = InheritingConfig.load_from_str(
+        """
+        foo = "bar"
+
+        name = "test"
+        first_list = [ 1, 2, 3 ]
+        nested_list = [ [ 1, 2, 3 ], [ 4, 5, 6 ] ]
+        first_map = { one = 1, two = 2 }
+        nested_map = { one = { one = 11 }, two = { one = 21, two = 22 }}
+
+        [inner]
+        """
+    )
+    assert config.name == "test"
+    assert config.foo == "bar"

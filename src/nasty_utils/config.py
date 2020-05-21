@@ -76,22 +76,25 @@ class Config:
     # TODO: warn about unused attribute in config file.
 
     def __init__(self, **kwargs: object):
-        for name, meta in vars(type(self)).items():
-            if not (isinstance(meta, _ConfigAttr) or isinstance(meta, _ConfigSection)):
-                continue
+        for class_ in reversed(type(self).mro()):
+            for name, meta in vars(class_).items():
+                if not (
+                    isinstance(meta, _ConfigAttr) or isinstance(meta, _ConfigSection)
+                ):
+                    continue
 
-            type_ = cast(Optional[Type[Any]], self.__annotations__.get(name))
-            if type_ is None:
-                raise TypeError(
-                    "Type annotation is required to use ConfigAttr()/ConfigSection(). "
-                    f"It is missing for {name}."
-                )
-            raw_value = kwargs.get(name)
+                type_ = cast(Optional[Type[Any]], class_.__annotations__.get(name))
+                if type_ is None:
+                    raise TypeError(
+                        "Type annotation is required to use "
+                        f"ConfigAttr()/ConfigSection(). It is missing for {name}."
+                    )
+                raw_value = kwargs.get(name)
 
-            if isinstance(meta, _ConfigAttr):
-                self._config_atttr(name, meta, type_, raw_value)
-            elif isinstance(meta, _ConfigSection):
-                self._config_section(name, meta, type_, raw_value)
+                if isinstance(meta, _ConfigAttr):
+                    self._config_atttr(name, meta, type_, raw_value)
+                elif isinstance(meta, _ConfigSection):
+                    self._config_section(name, meta, type_, raw_value)
 
     def _config_atttr(
         self, name: str, attr: _ConfigAttr, type_: Type[Any], raw_value: object
@@ -227,18 +230,19 @@ class Config:
 
     def serialize(self) -> Mapping[str, object]:
         result: MutableMapping[str, object] = {}
-        for name, meta in vars(type(self)).items():
-            if isinstance(meta, _ConfigAttr):
-                result[name] = (
-                    self._serialize_value(
-                        getattr(self, name), meta.serializer or (lambda x: x)
+        for class_ in reversed(type(self).mro()):
+            for name, meta in vars(class_).items():
+                if isinstance(meta, _ConfigAttr):
+                    result[name] = (
+                        self._serialize_value(
+                            getattr(self, name), meta.serializer or (lambda x: x)
+                        )
+                        if not meta.secret
+                        else "<secret>"
                     )
-                    if not meta.secret
-                    else "<secret>"
-                )
 
-            elif isinstance(meta, _ConfigSection):
-                result[name] = cast(Config, getattr(self, name)).serialize()
+                elif isinstance(meta, _ConfigSection):
+                    result[name] = cast(Config, getattr(self, name)).serialize()
         return result
 
     @classmethod
