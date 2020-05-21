@@ -15,7 +15,6 @@
 #
 
 import argparse
-from argparse import ArgumentParser
 from typing import Generic, Optional, Sequence, TypeVar
 
 from nasty_utils.config import Config
@@ -37,16 +36,9 @@ class Command(Generic[_T_Config]):
     def meta(cls) -> CommandMeta:
         raise NotImplementedError()
 
-    @classmethod
-    def setup_argparser(cls, argparser: ArgumentParser) -> None:
-        pass
-
     def __init__(self, args: argparse.Namespace, config: _T_Config):
         self._args = args
         self._config = config
-
-    def validate_arguments(self, argparser: ArgumentParser) -> None:
-        pass
 
     def run(self) -> None:
         pass

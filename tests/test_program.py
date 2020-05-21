@@ -102,6 +102,21 @@ class QqqCommand(Command[None]):
         return CommandMeta(name="qqq", desc="qqq desc")
 
 
+class InheritingCommand(QqqCommand):
+    test_file: Path = Argument(
+        required=True,
+        name="test-file",
+        metavar="File",
+        desc="Test file",
+        deserializer=Path,
+    )
+
+    @classmethod
+    @overrides
+    def meta(cls) -> CommandMeta:
+        return CommandMeta(name="inheriting", desc="inheriting desc")
+
+
 class NoConfigProgram(Program[None]):
     @classmethod
     @overrides
@@ -113,7 +128,7 @@ class NoConfigProgram(Program[None]):
             config_type=type(None),
             config_file="",
             config_dir="",
-            command_hierarchy={Command: [QqqCommand]},
+            command_hierarchy={Command: [QqqCommand, InheritingCommand]},
         )
 
 
@@ -176,20 +191,35 @@ def test_no_command_program() -> None:
 
 
 def test_program_help(capsys: CaptureFixture) -> None:
+    # This test doesn't really assert anything. Its goal is to produce nice logging
+    # output to manually look at.
+
+    def _log_capsys() -> None:
+        for line in capsys.readouterr().out.splitlines():
+            _LOGGER.info(line)
+
+    def _log_separator() -> None:
+        _LOGGER.info(80 * "-")
+
     with pytest.raises(SystemExit) as e:
-        NoConfigProgram("qqq", "-h")
+        NoConfigProgram("-h")
     assert e.value.code == 0
 
-    for line in capsys.readouterr().out.splitlines():
-        _LOGGER.info(line)
+    _log_capsys()
+    _log_separator()
+
+    with pytest.raises(SystemExit) as e:
+        NoConfigProgram("inheriting", "-h")
+    assert e.value.code == 0
+
+    _log_capsys()
+    _log_separator()
 
     with pytest.raises(SystemExit) as e:
         NoCommandProgram("-h")
     assert e.value.code == 0
 
-    _LOGGER.info(80 * "-")
-    for line in capsys.readouterr().out.splitlines():
-        _LOGGER.info(line)
+    _log_capsys()
 
 
 def test_program_arguments() -> None:
@@ -202,6 +232,24 @@ def test_program_arguments() -> None:
     prog = NoConfigProgram("qqq", "-i", "file.txt", "--out-file", "file.csv")
     assert cast(QqqCommand, prog._command).in_file == Path("file.txt")
     assert cast(QqqCommand, prog._command).out_file == Path("file.csv")
+
+    with pytest.raises(SystemExit) as e:
+        # Note that this will log an error to stderr. This is to be expected.
+        NoConfigProgram("inheriting", "-i", "file.txt", "--out-file", "file.csv")
+    assert e.value.code == 2  # argparse exit code in case of command failure.
+
+    prog = NoConfigProgram(
+        "inheriting",
+        "-i",
+        "file.txt",
+        "--out-file",
+        "file.csv",
+        "--test-file",
+        "file.test",
+    )
+    assert cast(InheritingCommand, prog._command).in_file == Path("file.txt")
+    assert cast(InheritingCommand, prog._command).out_file == Path("file.csv")
+    assert cast(InheritingCommand, prog._command).test_file == Path("file.test")
 
     prog = NoCommandProgram()
     assert prog.verbose is False

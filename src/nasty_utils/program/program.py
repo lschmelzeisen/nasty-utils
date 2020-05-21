@@ -98,7 +98,7 @@ class Program(Generic[_T_Config]):
 
         return argparser.parse_args(self._raw_args)
 
-    def _setup_argparser(
+    def _setup_argparser(  # noqa: C901
         self,
         argparser: ArgumentParser,
         argument_holder: Union[Type["Program[_T_Config]"], Type[Command[_T_Config]]],
@@ -131,47 +131,50 @@ class Program(Generic[_T_Config]):
                 help="Overwrite default config file path.",
             )
 
-        for name, meta in vars(argument_holder).items():
-            if isinstance(meta, ArgumentGroup):
-                g = argparser.add_argument_group(title=meta.name, description=meta.desc)
-
-            if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
-                continue
-
-            type_ = cast(Optional[Type[Any]], argument_holder.__annotations__.get(name))
-            if type_ is None:
-                raise TypeError(
-                    "Type annotation is required to use Flag()/Argument()."
-                    f"It is missing for {name}."
-                )
-
-            opts = ["--" + meta.name]
-            if meta.short_name:
-                opts.insert(
-                    0, "-" + meta.short_name,
-                )
-
-            if isinstance(meta, _Flag):
-                if type_ is not bool:
-                    raise TypeError(
-                        f"Type annotation for Flag() must be bool, but is {type_}."
+        for class_ in reversed(argument_holder.mro()):
+            for name, meta in vars(class_).items():
+                if isinstance(meta, ArgumentGroup):
+                    g = argparser.add_argument_group(
+                        title=meta.name, description=meta.desc
                     )
-                g.add_argument(
-                    *opts,
-                    help=meta.desc,
-                    action="store_true" if not meta.default else "store_false",
-                    dest=name,
-                )
 
-            elif isinstance(meta, _Argument):
-                g.add_argument(
-                    *opts,
-                    metavar=f"<{meta.metavar or meta.name.upper()}>",
-                    help=meta.desc,
-                    type=str,
-                    required=meta.required,
-                    dest=name,
-                )
+                if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
+                    continue
+
+                type_ = cast(Optional[Type[Any]], class_.__annotations__.get(name))
+                if type_ is None:
+                    raise TypeError(
+                        "Type annotation is required to use Flag()/Argument()."
+                        f"It is missing for {name}."
+                    )
+
+                opts = ["--" + meta.name]
+                if meta.short_name:
+                    opts.insert(
+                        0, "-" + meta.short_name,
+                    )
+
+                if isinstance(meta, _Flag):
+                    if type_ is not bool:
+                        raise TypeError(
+                            f"Type annotation for Flag() must be bool, but is {type_}."
+                        )
+                    g.add_argument(
+                        *opts,
+                        help=meta.desc,
+                        action="store_true" if not meta.default else "store_false",
+                        dest=name,
+                    )
+
+                elif isinstance(meta, _Argument):
+                    g.add_argument(
+                        *opts,
+                        metavar=f"<{meta.metavar or meta.name.upper()}>",
+                        help=meta.desc,
+                        type=str,
+                        required=meta.required,
+                        dest=name,
+                    )
 
     def _setup_subparsers(
         self,
@@ -216,7 +219,6 @@ class Program(Generic[_T_Config]):
                 depth=depth + 1,
             )
 
-            subcommand.setup_argparser(subparser)
             self._setup_argparser(subparser, subcommand)
 
     def _load_config(self) -> _T_Config:
@@ -247,35 +249,33 @@ class Program(Generic[_T_Config]):
             self._command = None
         else:
             self._command = command_cls(self._args, self._config)
-            self._command.validate_arguments(
-                self._subparser_by_command_type[command_cls]
-            )
 
         argument_holder = self._command or self
-        for name, meta in vars(type(argument_holder)).items():
-            if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
-                continue
+        for class_ in reversed(type(argument_holder).mro()):
+            for name, meta in vars(class_).items():
+                if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
+                    continue
 
-            raw_value = getattr(self._args, name)
-            if isinstance(meta, _Flag):
-                setattr(argument_holder, name, bool(raw_value))
-            elif isinstance(meta, _Argument):
-                type_ = cast(Type[Any], type(argument_holder).__annotations__.get(name))
-                value: object
-                if raw_value is None:
-                    value = meta.default
-                else:
-                    deserializer = meta.deserializer or (lambda x: x)
-                    value = deserializer(checked_cast(str, raw_value))
+                raw_value = getattr(self._args, name)
+                if isinstance(meta, _Flag):
+                    setattr(argument_holder, name, bool(raw_value))
+                elif isinstance(meta, _Argument):
+                    type_ = cast(Type[Any], class_.__annotations__.get(name))
+                    value: object
+                    if raw_value is None:
+                        value = meta.default
+                    else:
+                        deserializer = meta.deserializer or (lambda x: x)
+                        value = deserializer(checked_cast(str, raw_value))
 
-                type_origin = typing_inspect.get_origin(type_)
-                type_args = typing_inspect.get_args(type_, evaluate=True)
-                valid_types = (
-                    type_args if type_origin is Union else (type_,)  # type: ignore
-                )
-                if not any(isinstance(value, t) for t in valid_types):
-                    raise ValueError(
-                        f"Deserialized value {repr(value)} is not of type {type_}."
+                    type_origin = typing_inspect.get_origin(type_)
+                    type_args = typing_inspect.get_args(type_, evaluate=True)
+                    valid_types = (
+                        type_args if type_origin is Union else (type_,)  # type: ignore
                     )
+                    if not any(isinstance(value, t) for t in valid_types):
+                        raise ValueError(
+                            f"Deserialized value {repr(value)} is not of type {type_}."
+                        )
 
-                setattr(argument_holder, name, value)
+                    setattr(argument_holder, name, value)
