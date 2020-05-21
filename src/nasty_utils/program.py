@@ -18,7 +18,9 @@ import argparse
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
+    Callable,
     Generic,
     Mapping,
     MutableMapping,
@@ -35,11 +37,84 @@ import typing_inspect
 from nasty_utils._util.argparse_ import SingleMetavarHelpFormatter
 from nasty_utils.config import Config
 from nasty_utils.logging_ import LoggingConfig
-from nasty_utils.program.argument import ArgumentGroup, _Argument, _Flag
-from nasty_utils.program.command import Command
 from nasty_utils.typing_ import checked_cast
 
 _T_Config = TypeVar("_T_Config", bound=Optional[Config])
+
+
+class ArgumentGroup:
+    def __init__(self, *, name: str, desc: str):
+        self.name = name
+        self.desc = desc
+
+
+class _Flag:
+    def __init__(
+        self,
+        *,
+        name: str,
+        short_name: Optional[str] = None,
+        desc: str,
+        default: bool = False,
+    ):
+        self.name = name
+        self.short_name = short_name
+        self.desc = desc
+        self.default = default
+
+
+class _Argument:
+    def __init__(
+        self,
+        *,
+        name: str,
+        short_name: Optional[str] = None,
+        desc: str,
+        metavar: Optional[str] = None,
+        required: bool = False,
+        default: Optional[object] = None,
+        deserializer: Optional[Callable[[str], object]] = None,
+    ):
+        self.name = name
+        self.short_name = short_name
+        self.desc = desc
+        self.metavar = metavar
+        self.required = required
+        self.default = default
+        self.deserializer = deserializer
+
+        if self.required and self.default:
+            raise ValueError("Can not use required together with default.")
+
+
+if TYPE_CHECKING:
+    Flag = Any
+    Argument = Any
+else:
+    Flag = _Flag
+    Argument = _Argument
+
+
+class CommandMeta:
+    def __init__(
+        self, *, name: str, aliases: Optional[Sequence[str]] = None, desc: str
+    ):
+        self.name = name
+        self.aliases = aliases
+        self.desc = desc
+
+
+class Command(Generic[_T_Config]):
+    @classmethod
+    def meta(cls) -> CommandMeta:
+        raise NotImplementedError()
+
+    def __init__(self, args: argparse.Namespace, config: _T_Config):
+        self._args = args
+        self._config = config
+
+    def run(self) -> None:
+        pass
 
 
 class ProgramMeta(Generic[_T_Config]):
