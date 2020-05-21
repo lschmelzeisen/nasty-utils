@@ -23,7 +23,7 @@ import pytest
 import toml
 from typing_extensions import Final
 
-from nasty_utils.config import Config, ConfigAttr, ConfigSection
+from nasty_utils import Config, ConfigAttr, ConfigSection
 
 _LOGGER: Final[Logger] = getLogger(__name__)
 

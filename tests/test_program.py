@@ -25,10 +25,17 @@ from _pytest.capture import CaptureFixture
 from overrides import overrides
 from typing_extensions import Final
 
-from nasty_utils.logging_ import LoggingConfig, log_level_num
-from nasty_utils.program.argument import Argument, ArgumentGroup, Flag
-from nasty_utils.program.command import Command, CommandMeta
-from nasty_utils.program.program import Program, ProgramMeta
+from nasty_utils import (
+    Argument,
+    ArgumentGroup,
+    Command,
+    CommandMeta,
+    Flag,
+    LoggingConfig,
+    Program,
+    ProgramMeta,
+    log_level_num,
+)
 from tests._util.path import change_dir
 
 _LOGGER: Final[Logger] = getLogger(__name__)
