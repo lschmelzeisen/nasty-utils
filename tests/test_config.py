@@ -122,6 +122,6 @@ def test_find_config_file(tmp_path: Path) -> None:
                 ):
                     pass
 
-        assert Config.find_config_file(name, directory)
+                assert Config.find_config_file(name, directory)
     finally:
         chdir(cwd)
