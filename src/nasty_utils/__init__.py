@@ -18,6 +18,8 @@ import logging
 
 from nasty_utils.config import Config, ConfigAttr, ConfigSection
 from nasty_utils.datetime_ import (
+    advance_date_by_months,
+    date_range,
     format_yyyy_mm,
     format_yyyy_mm_dd,
     parse_yyyy_mm,
@@ -49,6 +51,8 @@ __all__ = [
     "Config",
     "ConfigAttr",
     "ConfigSection",
+    "advance_date_by_months",
+    "date_range",
     "format_yyyy_mm",
     "format_yyyy_mm_dd",
     "parse_yyyy_mm",
