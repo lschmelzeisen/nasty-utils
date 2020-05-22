@@ -18,7 +18,10 @@ import logging
 
 from nasty_utils.config import Config, ConfigAttr, ConfigSection
 from nasty_utils.datetime_ import (
+    format_yyyy_mm,
     format_yyyy_mm_dd,
+    parse_yyyy_mm,
+    parse_yyyy_mm_arg,
     parse_yyyy_mm_dd,
     parse_yyyy_mm_dd_arg,
 )
@@ -46,7 +49,10 @@ __all__ = [
     "Config",
     "ConfigAttr",
     "ConfigSection",
+    "format_yyyy_mm",
     "format_yyyy_mm_dd",
+    "parse_yyyy_mm",
+    "parse_yyyy_mm_arg",
     "parse_yyyy_mm_dd",
     "parse_yyyy_mm_dd_arg",
     "FileNotOnServerError",

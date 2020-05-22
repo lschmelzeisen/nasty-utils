@@ -34,3 +34,20 @@ def parse_yyyy_mm_dd_arg(s: str) -> date:
 
 def format_yyyy_mm_dd(d: date) -> str:
     return d.strftime("%Y-%m-%d")
+
+
+def parse_yyyy_mm(s: str) -> date:
+    return datetime.strptime(s, "%Y-%m").date()
+
+
+def parse_yyyy_mm_arg(s: str) -> date:
+    try:
+        return parse_yyyy_mm(s)
+    except ValueError:
+        raise ArgumentError(
+            f"Can not parse date: '{s}'. Make sure it is in YYYY-MM format."
+        )
+
+
+def format_yyyy_mm(d: date) -> str:
+    return d.strftime("%Y-%m")
