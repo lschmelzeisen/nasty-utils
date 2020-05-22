@@ -21,8 +21,10 @@ from typing import Sequence, Type, TypeVar
 from nasty_utils.program import ArgumentError
 
 
-# From: https://stackoverflow.com/a/37697078/211404
-def camel_case_split(s: str) -> Sequence[str]:
+# Adapted from: https://stackoverflow.com/a/37697078/211404
+def camel_case_split(s: str, remove_underscores: bool = True) -> Sequence[str]:
+    if remove_underscores:
+        s = s.replace("_", "")
     return re.sub("([A-Z][a-z]+)", r" \1", re.sub("([A-Z]+)", r" \1", s)).split()
 
 

@@ -25,6 +25,7 @@ from nasty_utils import ArgumentError, camel_case_split, parse_enum_arg
 def test_camel_case_split() -> None:
     assert camel_case_split("camelCaseTest123") == ["camel", "Case", "Test123"]
     assert camel_case_split("CamelCaseTest123") == ["Camel", "Case", "Test123"]
+    assert camel_case_split("_camel_CaseTest123") == ["camel", "Case", "Test123"]
     assert camel_case_split("CamelCaseXYZ") == ["Camel", "Case", "XYZ"]
     assert camel_case_split("XYZCamelCase") == ["XYZ", "Camel", "Case"]
     assert camel_case_split("XYZ") == ["XYZ"]
