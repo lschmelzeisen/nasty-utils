@@ -50,7 +50,7 @@ check-flake8: ##- Run linters.
 .PHONY: check-flake8
 
 check-mypy: ##- Run static type-checking.
-	@mypy .
+	@mypy src .
 .PHONY: check-mypy
 
 check-vulture: ##- Check for unsued code.

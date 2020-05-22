@@ -18,9 +18,9 @@ import logging
 
 from nasty_utils.config import Config, ConfigAttr, ConfigSection
 from nasty_utils.datetime_ import (
-    yyyy_mm_dd_arg_deserializer,
-    yyyy_mm_dd_deserializer,
-    yyyy_mm_dd_serializer,
+    format_yyyy_mm_dd,
+    parse_yyyy_mm_dd,
+    parse_yyyy_mm_dd_arg,
 )
 from nasty_utils.download import (
     FileNotOnServerError,
@@ -29,6 +29,7 @@ from nasty_utils.download import (
 )
 from nasty_utils.io_ import DecompressingTextIOWrapper
 from nasty_utils.logging_ import LoggingConfig, log_level, log_level_num
+from nasty_utils.misc import camel_case_split, parse_enum_arg
 from nasty_utils.program import (
     Argument,
     ArgumentError,
@@ -45,9 +46,9 @@ __all__ = [
     "Config",
     "ConfigAttr",
     "ConfigSection",
-    "yyyy_mm_dd_arg_deserializer",
-    "yyyy_mm_dd_deserializer",
-    "yyyy_mm_dd_serializer",
+    "format_yyyy_mm_dd",
+    "parse_yyyy_mm_dd",
+    "parse_yyyy_mm_dd_arg",
     "FileNotOnServerError",
     "download_file_with_progressbar",
     "sha256sum",
@@ -55,6 +56,8 @@ __all__ = [
     "LoggingConfig",
     "log_level",
     "log_level_num",
+    "camel_case_split",
+    "parse_enum_arg",
     "Argument",
     "ArgumentError",
     "ArgumentGroup",
@@ -66,10 +69,11 @@ __all__ = [
     "checked_cast",
 ]
 
+__version__ = "dev"
 try:
     from nasty_utils._version import __version__  # type: ignore
 except ImportError:
-    __version__ = "dev"
+    pass
 
 __version_info__ = tuple(
     (int(part) if part.isdigit() else part)
