@@ -54,7 +54,7 @@ def format_yyyy_mm(d: date) -> str:
     return d.strftime("%Y-%m")
 
 
-def advance_date_by_months(num_months: int, current_date: date) -> date:
+def advance_date_by_months(current_date: date, num_months: int) -> date:
     if num_months < 0:
         raise ValueError(f"Negative number of months {num_months}.")
 
