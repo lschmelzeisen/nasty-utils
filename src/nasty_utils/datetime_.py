@@ -19,18 +19,18 @@ from datetime import date, datetime
 from nasty_utils.program import ArgumentError
 
 
-def yyyy_mm_dd_deserializer(s: str) -> date:
+def parse_yyyy_mm_dd(s: str) -> date:
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
-def yyyy_mm_dd_arg_deserializer(s: str) -> date:
+def parse_yyyy_mm_dd_arg(s: str) -> date:
     try:
-        return yyyy_mm_dd_deserializer(s)
+        return parse_yyyy_mm_dd(s)
     except ValueError:
         raise ArgumentError(
             f"Can not parse date: '{s}'. Make sure it is in YYYY-MM-DD format."
         )
 
 
-def yyyy_mm_dd_serializer(d: date) -> str:
+def format_yyyy_mm_dd(d: date) -> str:
     return d.strftime("%Y-%m-%d")
