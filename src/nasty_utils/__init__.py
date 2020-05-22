@@ -17,6 +17,11 @@
 import logging
 
 from nasty_utils.config import Config, ConfigAttr, ConfigSection
+from nasty_utils.datetime_ import (
+    yyyy_mm_dd_arg_deserializer,
+    yyyy_mm_dd_deserializer,
+    yyyy_mm_dd_serializer,
+)
 from nasty_utils.download import (
     FileNotOnServerError,
     download_file_with_progressbar,
@@ -40,6 +45,9 @@ __all__ = [
     "Config",
     "ConfigAttr",
     "ConfigSection",
+    "yyyy_mm_dd_arg_deserializer",
+    "yyyy_mm_dd_deserializer",
+    "yyyy_mm_dd_serializer",
     "FileNotOnServerError",
     "download_file_with_progressbar",
     "sha256sum",
