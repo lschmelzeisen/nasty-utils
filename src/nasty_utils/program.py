@@ -114,9 +114,8 @@ class Command(Generic[_T_Config]):
     def meta(cls) -> CommandMeta:
         raise NotImplementedError()
 
-    def __init__(self, args: argparse.Namespace, config: _T_Config):
-        self._args = args
-        self._config = config
+    def __init__(self, config: _T_Config):
+        self.config = config
 
     def run(self) -> None:
         pass
@@ -151,10 +150,11 @@ class Program(Generic[_T_Config]):
         raise NotImplementedError()
 
     def __init__(self, *args: str):
-        self._raw_args = args
         self._meta = self.meta()
-        self._args = self._load_args()
-        self._config = self._load_config()
+        self._raw_args = args
+        self._parsed_args = self._load_args()
+        self.config = self._load_config()
+        self.command: Optional[Command[_T_Config]] = None
         self._parse_args()
 
         try:
@@ -163,11 +163,11 @@ class Program(Generic[_T_Config]):
             self._argparser.error(e.message)  # noqa: B306
 
     def run(self) -> None:
-        if self._command:
+        if self.command:
             try:
-                self._command.run()
+                self.command.run()
             except ArgumentError as e:
-                self._subparser_by_command_type[type(self._command)].error(
+                self._subparser_by_command_type[type(self.command)].error(
                     e.message  # noqa: B306
                 )
 
@@ -316,7 +316,7 @@ class Program(Generic[_T_Config]):
             return cast(_T_Config, None)
 
         config_overwrite_path = cast(
-            Optional[Path], getattr(self._args, "config", None)
+            Optional[Path], getattr(self._parsed_args, "config", None)
         )
         config: Config
         if config_overwrite_path:
@@ -333,20 +333,19 @@ class Program(Generic[_T_Config]):
 
     def _parse_args(self) -> None:
         command_cls = cast(
-            Optional[Type[Command[_T_Config]]], getattr(self._args, "command", None)
+            Optional[Type[Command[_T_Config]]],
+            getattr(self._parsed_args, "command", None),
         )
-        if not command_cls:
-            self._command = None
-        else:
-            self._command = command_cls(self._args, self._config)
+        if command_cls:
+            self.command = command_cls(self.config)
 
-        argument_holder = self._command or self
+        argument_holder = self.command or self
         for class_ in reversed(type(argument_holder).mro()):
             for name, meta in vars(class_).items():
                 if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
                     continue
 
-                raw_value = getattr(self._args, name)
+                raw_value = getattr(self._parsed_args, name)
                 if isinstance(meta, _Flag):
                     setattr(argument_holder, name, bool(raw_value))
                 elif isinstance(meta, _Argument):

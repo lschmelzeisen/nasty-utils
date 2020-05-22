@@ -241,19 +241,19 @@ def test_program_config(tmp_path: Path) -> None:
     with change_dir(tmp_path / "a") as path:
         with _write_logging_config(path / ".config" / "myprog.toml", "DEBUG"):
             prog = MyProgram("f")
-            assert prog._config.logging.level == log_level_num("DEBUG")
+            assert prog.config.logging.level == log_level_num("DEBUG")
 
     with change_dir(tmp_path / "b") as path:
         with _write_logging_config(path / "myprog.toml", "WARN"):
             prog = MyProgram("f", "--config", "myprog.toml")
-            assert prog._config.logging.level == log_level_num("WARN")
+            assert prog.config.logging.level == log_level_num("WARN")
 
     with change_dir(tmp_path / "c"):
         with pytest.raises(FileNotFoundError):
             MyProgram("f")
 
     prog = NoConfigProgram("qqq", "-i", "file.txt")
-    assert prog._config is None
+    assert prog.config is None
 
 
 def test_no_command_program() -> None:
@@ -296,12 +296,12 @@ def test_program_arguments() -> None:
     prog: Program[Any]
 
     prog = NoConfigProgram("qqq", "-i", "file.txt")
-    assert cast(QqqCommand, prog._command).in_file == Path("file.txt")
-    assert cast(QqqCommand, prog._command).out_file is None
+    assert cast(QqqCommand, prog.command).in_file == Path("file.txt")
+    assert cast(QqqCommand, prog.command).out_file is None
 
     prog = NoConfigProgram("qqq", "-i", "file.txt", "--out-file", "file.csv")
-    assert cast(QqqCommand, prog._command).in_file == Path("file.txt")
-    assert cast(QqqCommand, prog._command).out_file == Path("file.csv")
+    assert cast(QqqCommand, prog.command).in_file == Path("file.txt")
+    assert cast(QqqCommand, prog.command).out_file == Path("file.csv")
 
     with pytest.raises(SystemExit) as e:
         # Note that this will log an error to stderr. This is to be expected.
@@ -317,9 +317,9 @@ def test_program_arguments() -> None:
         "--test-file",
         "file.test",
     )
-    assert cast(InheritingCommand, prog._command).in_file == Path("file.txt")
-    assert cast(InheritingCommand, prog._command).out_file == Path("file.csv")
-    assert cast(InheritingCommand, prog._command).test_file == Path("file.test")
+    assert cast(InheritingCommand, prog.command).in_file == Path("file.txt")
+    assert cast(InheritingCommand, prog.command).out_file == Path("file.csv")
+    assert cast(InheritingCommand, prog.command).test_file == Path("file.test")
 
     prog = NoCommandProgram()
     assert prog.verbose is False
@@ -347,7 +347,7 @@ def test_argument_error(capsys: CaptureFixture) -> None:
     _assert_outerr(e, f"{ErrorProgram.meta().name}: error")
 
     prog = ErrorCommandProgram("errorcomm", "--digit", "1")
-    assert cast(ErrorCommand, prog._command).digit == 1
+    assert cast(ErrorCommand, prog.command).digit == 1
 
     with pytest.raises(SystemExit) as e:
         ErrorCommandProgram("errorcomm", "--digit", "10")
