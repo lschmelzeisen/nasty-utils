@@ -26,6 +26,7 @@ from nasty_utils.io_ import DecompressingTextIOWrapper
 from nasty_utils.logging_ import LoggingConfig, log_level, log_level_num
 from nasty_utils.program import (
     Argument,
+    ArgumentError,
     ArgumentGroup,
     Command,
     CommandMeta,
@@ -47,6 +48,7 @@ __all__ = [
     "log_level",
     "log_level_num",
     "Argument",
+    "ArgumentError",
     "ArgumentGroup",
     "Flag",
     "Command",

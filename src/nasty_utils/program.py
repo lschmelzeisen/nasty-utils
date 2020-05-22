@@ -87,6 +87,11 @@ class _Argument:
             raise ValueError("Can not use required together with default.")
 
 
+class ArgumentError(Exception):
+    def __init__(self, message: str):
+        self.message = message
+
+
 if TYPE_CHECKING:
     Flag = Any
     Argument = Any
@@ -151,27 +156,36 @@ class Program(Generic[_T_Config]):
         self._args = self._load_args()
         self._config = self._load_config()
         self._parse_args()
-        self.run()
+
+        try:
+            self.run()
+        except ArgumentError as e:
+            self._argparser.error(e.message)  # noqa: B306
 
     def run(self) -> None:
         if self._command:
-            self._command.run()
+            try:
+                self._command.run()
+            except ArgumentError as e:
+                self._subparser_by_command_type[type(self._command)].error(
+                    e.message  # noqa: B306
+                )
 
     def _load_args(self) -> argparse.Namespace:
-        argparser = ArgumentParser(
+        self._argparser = ArgumentParser(
             prog=self._meta.name,
             description=self._meta.desc,
             add_help=False,
             formatter_class=SingleMetavarHelpFormatter,
         )
-        self._setup_argparser(argparser, type(self))
+        self._setup_argparser(self._argparser, type(self))
 
         self._subparser_by_command_type: MutableMapping[
             Type[Command[_T_Config]], ArgumentParser
         ] = {}
-        self._setup_subparsers(argparser, Command, name=self._meta.name, depth=0)
+        self._setup_subparsers(self._argparser, Command, name=self._meta.name, depth=0)
 
-        return argparser.parse_args(self._raw_args)
+        return self._argparser.parse_args(self._raw_args)
 
     def _setup_argparser(  # noqa: C901
         self,

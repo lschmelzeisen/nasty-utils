@@ -21,12 +21,14 @@ from pathlib import Path
 from typing import Any, Iterator, Optional, cast
 
 import pytest
+from _pytest._code import ExceptionInfo
 from _pytest.capture import CaptureFixture
 from overrides import overrides
 from typing_extensions import Final
 
 from nasty_utils import (
     Argument,
+    ArgumentError,
     ArgumentGroup,
     Command,
     CommandMeta,
@@ -156,6 +158,67 @@ class NoCommandProgram(Program[None]):
         )
 
 
+class ErrorProgram(Program[None]):
+    digit: int = Argument(
+        name="digit",
+        desc="digit desc",
+        metavar="DIGIT",
+        required=True,
+        deserializer=int,
+    )
+
+    @classmethod
+    @overrides
+    def meta(cls) -> ProgramMeta[None]:
+        return ProgramMeta(
+            name="errorprog",
+            version="0.1.0",
+            desc="errorprog desc",
+            config_type=type(None),
+            config_file="",
+            config_dir="",
+            command_hierarchy=None,
+        )
+
+    def run(self) -> None:
+        if not 0 < self.digit < 10:
+            raise ArgumentError(f"Expected a digit (0-9), received: {self.digit}")
+
+
+class ErrorCommand(Command[None]):
+    digit: int = Argument(
+        name="digit",
+        desc="digit desc",
+        metavar="DIGIT",
+        required=True,
+        deserializer=int,
+    )
+
+    @classmethod
+    @overrides
+    def meta(cls) -> CommandMeta:
+        return CommandMeta(name="errorcomm", desc="errorcomm desc")
+
+    def run(self) -> None:
+        if not 0 < self.digit < 10:
+            raise ArgumentError(f"Expected a digit (0-9), received: {self.digit}")
+
+
+class ErrorCommandProgram(Program[None]):
+    @classmethod
+    @overrides
+    def meta(cls) -> ProgramMeta[None]:
+        return ProgramMeta(
+            name="errorprog",
+            version="0.1.0",
+            desc="errorprog desc",
+            config_type=type(None),
+            config_file="",
+            config_dir="",
+            command_hierarchy={Command: [ErrorCommand]},
+        )
+
+
 @contextmanager
 def _write_logging_config(config_file: Path, level: str) -> Iterator[None]:
     Path.mkdir(config_file.parent, exist_ok=True, parents=True)
@@ -263,3 +326,31 @@ def test_program_arguments() -> None:
 
     prog = NoCommandProgram("--verbose")
     assert prog.verbose is True
+
+
+def test_argument_error(capsys: CaptureFixture) -> None:
+    def _assert_outerr(e: ExceptionInfo[SystemExit], msg_part: str) -> None:
+        assert e.value.code == 2  # argparse exit code in case of command failure.
+        outerr = capsys.readouterr()
+        assert not outerr.out
+        assert msg_part in outerr.err
+        for line in outerr.err.splitlines():
+            _LOGGER.info(line)
+
+    prog: Program[Any]
+
+    prog = ErrorProgram("--digit", "1")
+    assert prog.digit == 1
+
+    with pytest.raises(SystemExit) as e:
+        ErrorProgram("--digit", "10")
+    _assert_outerr(e, f"{ErrorProgram.meta().name}: error")
+
+    prog = ErrorCommandProgram("errorcomm", "--digit", "1")
+    assert cast(ErrorCommand, prog._command).digit == 1
+
+    with pytest.raises(SystemExit) as e:
+        ErrorCommandProgram("errorcomm", "--digit", "10")
+    _assert_outerr(
+        e, f"{ErrorCommandProgram.meta().name} {ErrorCommand.meta().name}: error"
+    )
