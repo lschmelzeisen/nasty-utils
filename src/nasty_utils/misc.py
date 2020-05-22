@@ -30,8 +30,8 @@ _T_Enum = TypeVar("_T_Enum", bound=Enum)
 
 
 def parse_enum_arg(
-    enum_cls: Type[_T_Enum],
     s: str,
+    enum_cls: Type[_T_Enum],
     *,
     ignore_case: bool = False,
     convert_camel_case_for_error: bool = False,
