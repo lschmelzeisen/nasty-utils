@@ -38,16 +38,16 @@ class MyEnum(Enum):
 
 
 def test_parse_enum_arg() -> None:
-    assert parse_enum_arg(MyEnum, "A") == MyEnum.A
-    assert parse_enum_arg(MyEnum, "B") == MyEnum.B
+    assert parse_enum_arg("A", MyEnum) == MyEnum.A
+    assert parse_enum_arg("B", MyEnum) == MyEnum.B
 
     with pytest.raises(ArgumentError) as e:
-        parse_enum_arg(MyEnum, "a")
+        parse_enum_arg("a", MyEnum)
     assert "MyEnum" in e.value.message
 
-    assert parse_enum_arg(MyEnum, "a", ignore_case=True) == MyEnum.A
-    assert parse_enum_arg(MyEnum, "b", ignore_case=True) == MyEnum.B
+    assert parse_enum_arg("a", MyEnum, ignore_case=True) == MyEnum.A
+    assert parse_enum_arg("b", MyEnum, ignore_case=True) == MyEnum.B
 
     with pytest.raises(ArgumentError) as e:
-        parse_enum_arg(MyEnum, "c", convert_camel_case_for_error=True)
+        parse_enum_arg("c", MyEnum, convert_camel_case_for_error=True)
     assert "my enum" in e.value.message
