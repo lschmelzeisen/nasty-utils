@@ -364,7 +364,8 @@ class Program(Generic[_T_Config]):
                     )
                     if not any(isinstance(value, t) for t in valid_types):
                         raise ValueError(
-                            f"Deserialized value {repr(value)} is not of type {type_}."
+                            f"Deserialized value {repr(value)} of argument {name} is "
+                            f"not of type {type_}."
                         )
 
                     setattr(argument_holder, name, value)

@@ -18,7 +18,7 @@
 from contextlib import contextmanager
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import Any, Iterator, Optional, cast
+from typing import Any, Callable, Iterator, Optional, cast
 
 import pytest
 from _pytest._code import ExceptionInfo
@@ -329,28 +329,39 @@ def test_program_arguments() -> None:
 
 
 def test_argument_error(capsys: CaptureFixture) -> None:
-    def _assert_outerr(e: ExceptionInfo[SystemExit], msg_part: str) -> None:
+    def _assert_outerr(callback: Callable[[None], Program[Any]], msg_part: str) -> None:
+        with pytest.raises(SystemExit) as e:
+            callback()
         assert e.value.code == 2  # argparse exit code in case of command failure.
+
         outerr = capsys.readouterr()
         assert not outerr.out
+
         assert msg_part in outerr.err
+
         for line in outerr.err.splitlines():
             _LOGGER.info(line)
 
     prog: Program[Any]
 
+    _assert_outerr(lambda: ErrorProgram(), f"{ErrorProgram.meta().name}: error")
+
     prog = ErrorProgram("--digit", "1")
     assert prog.digit == 1
 
-    with pytest.raises(SystemExit) as e:
-        ErrorProgram("--digit", "10")
-    _assert_outerr(e, f"{ErrorProgram.meta().name}: error")
+    _assert_outerr(
+        lambda: ErrorProgram("--digit", "10"), f"{ErrorProgram.meta().name}: error"
+    )
+
+    _assert_outerr(
+        lambda: ErrorCommandProgram("errorcomm"),
+        f"{ErrorCommandProgram.meta().name} {ErrorCommand.meta().name}: error",
+    )
 
     prog = ErrorCommandProgram("errorcomm", "--digit", "1")
     assert cast(ErrorCommand, prog.command).digit == 1
 
-    with pytest.raises(SystemExit) as e:
-        ErrorCommandProgram("errorcomm", "--digit", "10")
     _assert_outerr(
-        e, f"{ErrorCommandProgram.meta().name} {ErrorCommand.meta().name}: error"
+        lambda: ErrorCommandProgram("errorcomm", "--digit", "10"),
+        f"{ErrorCommandProgram.meta().name} {ErrorCommand.meta().name}: error",
     )
