@@ -39,7 +39,7 @@ from nasty_utils.config import Config
 from nasty_utils.logging_ import LoggingConfig
 from nasty_utils.typing_ import checked_cast
 
-_T_Config = TypeVar("_T_Config", bound=Optional[Config], contravariant=True)
+_T_Config = TypeVar("_T_Config", bound=Optional[Config])
 
 
 class ArgumentGroup:

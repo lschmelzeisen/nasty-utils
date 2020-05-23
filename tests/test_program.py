@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Optional, cast
 
 import pytest
-from _pytest._code import ExceptionInfo
 from _pytest.capture import CaptureFixture
 from overrides import overrides
 from typing_extensions import Final
@@ -329,7 +328,7 @@ def test_program_arguments() -> None:
 
 
 def test_argument_error(capsys: CaptureFixture) -> None:
-    def _assert_outerr(callback: Callable[[None], Program[Any]], msg_part: str) -> None:
+    def _assert_outerr(callback: Callable[[], Program[Any]], msg_part: str) -> None:
         with pytest.raises(SystemExit) as e:
             callback()
         assert e.value.code == 2  # argparse exit code in case of command failure.
