@@ -184,11 +184,16 @@ class Config:
     def _config_section(
         self, name: str, _section: _ConfigSection, type_: Type[Any], raw_value: object
     ) -> None:
+        if not issubclass(type_, Config):
+            raise TypeError(
+                "Type annotation for ConfigSection() values must be a subclass of "
+                f"Config. For '{name}' it was {type_}."
+            )
         if not isinstance(raw_value, Mapping):
             raise ValueError(
                 f"Expected {name} to be a TOML-table, not a {type(raw_value)}."
             )
-        setattr(self, name, type_(**raw_value))
+        setattr(self, name, type_(config_file=self._config_file, **raw_value))
 
     @classmethod
     def load_from_str(
