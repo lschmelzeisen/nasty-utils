@@ -35,6 +35,8 @@ import toml
 import typing_inspect
 from typing_extensions import Final
 
+from nasty_utils.typing_ import checked_cast
+
 _LOGGER: Final[Logger] = getLogger(__name__)
 
 
@@ -75,7 +77,9 @@ _T_Config = TypeVar("_T_Config", bound="Config")
 class Config:
     # TODO: warn about unused attribute in config file.
 
-    def __init__(self, **kwargs: object):
+    def __init__(self, *, config_file: Optional[Path] = None, **kwargs: object):
+        self._config_file = config_file
+
         for class_ in reversed(type(self).mro()):
             for name, meta in vars(class_).items():
                 if not (
@@ -108,7 +112,7 @@ class Config:
         else:
             try:
                 value = self._deserialize_and_verify_type(
-                    raw_value, attr.deserializer or (lambda x: x), type_
+                    raw_value, attr.deserializer, type_
                 )
             except Exception as e:
                 raise ValueError(
@@ -119,15 +123,15 @@ class Config:
 
         setattr(self, name, value)
 
-    @classmethod
     def _deserialize_and_verify_type(
-        cls,
+        self,
         raw_value: object,
-        deserializer: Callable[[object], object],
+        deserializer: Optional[Callable[[object], object]],
         type_: Type[Any],
     ) -> object:
         type_origin = typing_inspect.get_origin(type_)
         type_args = typing_inspect.get_args(type_, evaluate=True)
+        valid_types = type_args if type_origin is Union else (type_,)  # type: ignore
 
         if (
             type_origin
@@ -140,7 +144,7 @@ class Config:
             inner_type = type_args[0] if len(type_args) else object
 
             return [
-                cls._deserialize_and_verify_type(x, deserializer, inner_type)
+                self._deserialize_and_verify_type(x, deserializer, inner_type)
                 for x in raw_value
             ]
 
@@ -157,13 +161,19 @@ class Config:
             inner_type = type_args[1] if len(type_args) else object
 
             return {
-                k: cls._deserialize_and_verify_type(v, deserializer, inner_type)
+                k: self._deserialize_and_verify_type(v, deserializer, inner_type)
                 for k, v in raw_value.items()
             }
 
-        value = deserializer(raw_value)
+        if deserializer is not None:
+            value = deserializer(raw_value)
+        elif any(issubclass(t, Path) for t in valid_types):
+            value = Path(checked_cast(str, raw_value))
+            if not value.is_absolute() and self._config_file:
+                value = self._config_file.parent / value
+        else:
+            value = raw_value
 
-        valid_types = type_args if type_origin is Union else (type_,)  # type: ignore
         if not any(isinstance(value, t) for t in valid_types):
             raise ValueError(
                 f"Deserialized value {repr(value)} is not of type {type_}."
@@ -181,14 +191,16 @@ class Config:
         setattr(self, name, type_(**raw_value))
 
     @classmethod
-    def load_from_str(cls: Type[_T_Config], toml_str: str) -> _T_Config:
-        return cls(**toml.loads(toml_str))
+    def load_from_str(
+        cls: Type[_T_Config], toml_str: str, *, config_file: Optional[Path] = None
+    ) -> _T_Config:
+        return cls(config_file=config_file, **toml.loads(toml_str))
 
     @classmethod
     def load_from_config_file(cls: Type[_T_Config], config_file: Path) -> _T_Config:
         _LOGGER.debug(f"Loading {cls.__name__} from '{config_file}'...")
         with config_file.open(encoding="UTF-8") as fin:
-            return cls.load_from_str(fin.read())
+            return cls.load_from_str(fin.read(), config_file=config_file)
 
     @classmethod
     def find_config_file(cls, name: str, directory: str = ".") -> Path:
@@ -220,7 +232,8 @@ class Config:
     def find_and_load_from_config_file(
         cls: Type[_T_Config], name: str, directory: str = "."
     ) -> _T_Config:
-        return cls.load_from_config_file(cls.find_config_file(name, directory))
+        config_file = cls.find_config_file(name, directory)
+        return cls.load_from_config_file(config_file)
 
     def __str__(self) -> str:
         dict_str = "\n".join(
@@ -234,9 +247,7 @@ class Config:
             for name, meta in vars(class_).items():
                 if isinstance(meta, _ConfigAttr):
                     result[name] = (
-                        self._serialize_value(
-                            getattr(self, name), meta.serializer or (lambda x: x)
-                        )
+                        self._serialize_value(getattr(self, name), meta.serializer)
                         if not meta.secret
                         else "<secret>"
                     )
@@ -247,7 +258,7 @@ class Config:
 
     @classmethod
     def _serialize_value(
-        cls, value: object, serializer: Callable[[object], object]
+        cls, value: object, serializer: Optional[Callable[[object], object]]
     ) -> object:
         if isinstance(value, Sequence) and not isinstance(value, str):
             return [cls._serialize_value(x, serializer) for x in value]
@@ -255,5 +266,9 @@ class Config:
             return {k: cls._serialize_value(v, serializer) for k, v in value.items()}
         elif value is None:
             return None
-        else:
+        elif serializer is not None:
             return serializer(value)
+        elif isinstance(value, Path):
+            return str(value)
+        else:
+            return value

@@ -33,7 +33,7 @@ class MyInnerConfig(Config):
     port: int = ConfigAttr(default=9200)
     user: str = ConfigAttr(default="elastic")
     password: str = ConfigAttr(default="", secret=True)
-    path: Optional[Path] = ConfigAttr(deserializer=Path, serializer=str)
+    path: Optional[Path] = ConfigAttr()
 
 
 class MyConfig(Config):
@@ -55,6 +55,10 @@ class MyConfig(Config):
 
 class InheritingConfig(MyConfig):
     foo: str = ConfigAttr(required=True)
+
+
+class PathConfig(Config):
+    path: Path = ConfigAttr(required=True)
 
 
 def test_load_from_config_file(tmp_path: Path) -> None:
@@ -147,3 +151,29 @@ def test_inheriting_config() -> None:
     )
     assert config.name == "test"
     assert config.foo == "bar"
+
+
+def test_path_config(tmp_path: Path) -> None:
+    config_contents = """
+        path = "test.path"
+        """
+
+    config = PathConfig.load_from_str(config_contents)
+    _LOGGER.debug(f"path when not loading from file: '{config.path}'")
+    assert config.path == Path("test.path")
+
+    cwd = Path.cwd()
+    try:
+        chdir(tmp_path)
+
+        Path.mkdir(tmp_path / ".config")
+        with (tmp_path / ".config" / "config.toml").open("w", encoding="UTF-8") as fout:
+            fout.write(config_contents)
+
+        config = PathConfig.find_and_load_from_config_file("config.toml")
+        _LOGGER.debug(f"path when loading from file: '{config.path}'")
+        assert config.path.name == "test.path"
+        assert config.path.parent.name == ".config"
+        assert config.path.parent.parent.name == tmp_path.name
+    finally:
+        chdir(cwd)
