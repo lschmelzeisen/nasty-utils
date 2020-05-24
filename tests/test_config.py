@@ -194,9 +194,11 @@ def test_inner_optional_config() -> None:
         host = "localhost"
         """
     )
+    _LOGGER.debug(config.serialize())
     assert config.inner is not None and config.inner.host == "localhost"
 
     config = InnerOptionalConfig.load_from_str("")
+    _LOGGER.debug(config.serialize())
     assert config.inner is None
 
 
@@ -213,9 +215,11 @@ def test_inner_sequence_config() -> None:
         host = "localhost3"
         """
     )
+    _LOGGER.debug(config.serialize())
     assert len(config.inner) == 3
     for i in range(3):
         assert config.inner[i].host == f"localhost{i+1}"
 
     config = InnerSequenceConfig.load_from_str("")
+    _LOGGER.debug(config.serialize())
     assert len(config.inner) == 0

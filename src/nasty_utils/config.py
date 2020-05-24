@@ -287,7 +287,7 @@ class Config:
                     )
 
                 elif isinstance(meta, _ConfigSection):
-                    result[name] = cast(Config, getattr(self, name)).serialize()
+                    result[name] = self._serialize_section(getattr(self, name))
         return result
 
     @classmethod
@@ -306,3 +306,12 @@ class Config:
             return str(value)
         else:
             return value
+
+    @classmethod
+    def _serialize_section(cls, value: object) -> object:
+        if value is None:
+            return None
+        elif isinstance(value, Sequence):
+            return [cls._serialize_section(x) for x in value]
+        else:
+            return checked_cast(Config, value).serialize()
