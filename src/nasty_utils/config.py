@@ -131,7 +131,6 @@ class Config:
     ) -> object:
         type_origin = typing_inspect.get_origin(type_)
         type_args = typing_inspect.get_args(type_, evaluate=True)
-        valid_types = type_args if type_origin is Union else (type_,)  # type: ignore
 
         if (
             type_origin
@@ -165,6 +164,7 @@ class Config:
                 for k, v in raw_value.items()
             }
 
+        valid_types = type_args if type_origin is Union else (type_,)  # type: ignore
         if deserializer is not None:
             value = deserializer(raw_value)
         elif any(issubclass(t, Path) for t in valid_types):
@@ -184,16 +184,45 @@ class Config:
     def _config_section(
         self, name: str, _section: _ConfigSection, type_: Type[Any], raw_value: object
     ) -> None:
+        try:
+            setattr(self, name, self._deserialize_section(raw_value, type_))
+        except Exception as e:
+            raise ValueError(
+                f"Config section {name} can not be deserialized to {type_}."
+                f" Raw value is '{raw_value}' of type {type(raw_value)}.",
+                e,
+            )
+
+    def _deserialize_section(self, raw_value: object, type_: Type[Any]) -> object:
+        type_origin = typing_inspect.get_origin(type_)
+        type_args = typing_inspect.get_args(type_, evaluate=True)
+
+        if (
+            type_origin
+            and type_origin is not Union  # type: ignore
+            and issubclass(type_origin, Sequence)
+        ):
+            if raw_value is None:
+                return []
+            if not isinstance(raw_value, Sequence):
+                raise ValueError(f"Expected a sequence but found a {type(raw_value)}.")
+            return [self._deserialize_section(x, type_args[0]) for x in raw_value]
+
+        if type_origin is Union:  # type: ignore
+            if raw_value is None:
+                return None
+            type_ = type_args[0]
+
         if not issubclass(type_, Config):
             raise TypeError(
                 "Type annotation for ConfigSection() values must be a subclass of "
-                f"Config. For '{name}' it was {type_}."
+                f"Config or a Optional or Sequence of that. It was {type_}."
             )
+
         if not isinstance(raw_value, Mapping):
-            raise ValueError(
-                f"Expected {name} to be a TOML-table, not a {type(raw_value)}."
-            )
-        setattr(self, name, type_(config_file=self._config_file, **raw_value))
+            raise ValueError(f"Expected a TOML-table, not a {type(raw_value)}.")
+
+        return type_(config_file=self._config_file, **raw_value)
 
     @classmethod
     def load_from_str(

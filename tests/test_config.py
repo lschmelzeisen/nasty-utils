@@ -61,6 +61,14 @@ class PathConfig(Config):
     path: Path = ConfigAttr(required=True)
 
 
+class InnerOptionalConfig(Config):
+    inner: Optional[MyInnerConfig] = ConfigSection()
+
+
+class InnerSequenceConfig(Config):
+    inner: Sequence[MyInnerConfig] = ConfigSection()
+
+
 def test_load_from_config_file(tmp_path: Path) -> None:
     config_file = tmp_path / "config.toml"
     with config_file.open("w", encoding="UTF-8") as fout:
@@ -103,7 +111,7 @@ def test_load_from_config_file(tmp_path: Path) -> None:
     assert config.inner.port == 9200
     assert config.inner.user == "test-user"
     assert config.inner.password == "test-pass"
-    assert config.inner.path == Path("test.path")
+    assert config.inner.path is not None and config.inner.path.name == "test.path"
 
     config_file = tmp_path / "config2.toml"
     with config_file.open("w", encoding="UTF-8") as fout:
@@ -177,3 +185,37 @@ def test_path_config(tmp_path: Path) -> None:
         assert config.path.parent.parent.name == tmp_path.name
     finally:
         chdir(cwd)
+
+
+def test_inner_optional_config() -> None:
+    config = InnerOptionalConfig.load_from_str(
+        """
+        [inner]
+        host = "localhost"
+        """
+    )
+    assert config.inner is not None and config.inner.host == "localhost"
+
+    config = InnerOptionalConfig.load_from_str("")
+    assert config.inner is None
+
+
+def test_inner_sequence_config() -> None:
+    config = InnerSequenceConfig.load_from_str(
+        """
+        [[inner]]
+        host = "localhost1"
+
+        [[inner]]
+        host = "localhost2"
+
+        [[inner]]
+        host = "localhost3"
+        """
+    )
+    assert len(config.inner) == 3
+    for i in range(3):
+        assert config.inner[i].host == f"localhost{i+1}"
+
+    config = InnerSequenceConfig.load_from_str("")
+    assert len(config.inner) == 0
