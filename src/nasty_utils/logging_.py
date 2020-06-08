@@ -19,15 +19,17 @@ from datetime import datetime
 from inspect import getfile
 from logging import FileHandler, Formatter, Handler, LogRecord, StreamHandler, getLogger
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence, TextIO, cast
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, TextIO, cast
 
-from _pytest.config import Config as PytestConfig
 from colorlog import ColoredFormatter
 from tqdm import tqdm
 from typing_extensions import Final
 
 from nasty_utils.config import Config, ConfigAttr, ConfigSection
 from nasty_utils.typing_ import checked_cast
+
+if TYPE_CHECKING:
+    from _pytest.config import Config as PytestConfig
 
 _LOG_LEVELS: Final[Sequence[str]] = [
     "CRITICAL",
@@ -175,7 +177,7 @@ class LoggingConfig(Config):
         # https://github.com/python/mypy/issues/2427
         tqdm.refresh = patched_refresh  # type: ignore
 
-    def setup_pytest_logging(self, pytest_config: PytestConfig) -> None:
+    def setup_pytest_logging(self, pytest_config: "PytestConfig") -> None:
         logging.addLevelName(logging.WARNING, "WARN")
         logging.addLevelName(logging.CRITICAL, "CRIT")
 
