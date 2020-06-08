@@ -225,7 +225,7 @@ def _write_logging_config(config_file: Path, level: str) -> Iterator[None]:
         fout.write(
             f"""
             [logging]
-            level = "{level}"
+            cli_level = "{level}"
             """
         )
 
@@ -240,12 +240,12 @@ def test_program_config(tmp_path: Path) -> None:
     with change_dir(tmp_path / "a") as path:
         with _write_logging_config(path / ".config" / "myprog.toml", "DEBUG"):
             prog = MyProgram("f")
-            assert prog.config.logging.level == log_level_num("DEBUG")
+            assert prog.config.logging.cli_level == log_level_num("DEBUG")
 
     with change_dir(tmp_path / "b") as path:
         with _write_logging_config(path / "myprog.toml", "WARN"):
             prog = MyProgram("f", "--config", "myprog.toml")
-            assert prog.config.logging.level == log_level_num("WARN")
+            assert prog.config.logging.cli_level == log_level_num("WARN")
 
     with change_dir(tmp_path / "c"):
         with pytest.raises(FileNotFoundError):
