@@ -18,6 +18,7 @@ import logging
 from datetime import datetime
 from inspect import getfile
 from logging import FileHandler, Formatter, Handler, LogRecord, StreamHandler, getLogger
+from os import environ
 from pathlib import Path
 from sys import argv
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, TextIO, cast
@@ -88,7 +89,9 @@ class _LoggingSection(Config):
     )
     cli_format: str = ConfigAttr(default="{log_color}{message}")
 
-    file: Optional[Path] = ConfigAttr(default=Path(".logs/{prog}-{asctime}.log"))
+    file: Optional[Path] = ConfigAttr(
+        default=Path("{xdg_data_home}/logs/{prog}-{asctime}.log")
+    )
     file_level: int = ConfigAttr(
         default=logging.DEBUG, deserializer=log_level_num, serializer=log_level
     )
@@ -120,8 +123,11 @@ class LoggingConfig(Config):
 
         if self.logging.file:
             format_args = {
-                "prog": Path(argv[0]).name,
                 "asctime": datetime.now().isoformat(),
+                "prog": Path(argv[0]).name,
+                "xdg_data_home": Path(
+                    environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+                ),
             }
 
             log_file = Path(str(self.logging.file).format(**format_args))

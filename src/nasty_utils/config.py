@@ -238,7 +238,7 @@ class Config:
 
     @classmethod
     def find_config_file(cls, name: str, directory: str = ".") -> Path:
-        xdg_config_home = environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+        xdg_config_home = environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
         xdg_config_dirs = environ.get("XDG_CONFIG_DIRS")
 
         config_dirs = [Path.cwd() / ".config"]
