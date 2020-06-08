@@ -238,18 +238,16 @@ class Config:
 
     @classmethod
     def find_config_file(cls, name: str, directory: str = ".") -> Path:
-        xdg_config_home = environ.get("XDG_CONFIG_HOME")
+        xdg_config_home = environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
         xdg_config_dirs = environ.get("XDG_CONFIG_DIRS")
 
         config_dirs = [Path.cwd() / ".config"]
         while config_dirs[-1].parent.parent != config_dirs[-1].parent:
             config_dirs.append(config_dirs[-1].parent.parent / ".config")
 
-        if xdg_config_home is not None:
-            config_dirs.append(Path(xdg_config_home))
-        config_dirs.append(Path.home() / ".config")
-        if xdg_config_dirs is not None:
-            config_dirs.append(Path(xdg_config_dirs))
+        config_dirs.append(Path(xdg_config_home))
+        if xdg_config_dirs:
+            config_dirs.extend(Path(d) for d in xdg_config_dirs.split(":"))
 
         for config_dir in config_dirs:
             path = config_dir / directory / name
