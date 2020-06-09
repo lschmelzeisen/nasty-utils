@@ -21,7 +21,7 @@ from logging import Logger, getLogger
 from lzma import LZMAFile
 from pathlib import Path
 from types import TracebackType
-from typing import IO, Optional, Type, cast
+from typing import BinaryIO, Optional, Type, cast
 
 from overrides import overrides
 from tqdm import tqdm
@@ -46,15 +46,15 @@ class DecompressingTextIOWrapper(TextIOWrapper):
         self.path = path
 
         self._fp = path.open("rb")
-        self._fin: IO[bytes]
+        self._fin: BinaryIO
         if path.suffix == ".gz":
-            self._fin = cast(IO[bytes], GzipFile(fileobj=self._fp))
+            self._fin = cast(BinaryIO, GzipFile(fileobj=self._fp))
         elif path.suffix == ".bz2":
-            self._fin = BZ2File(self._fp)
+            self._fin = cast(BinaryIO, BZ2File(self._fp))
         elif path.suffix == ".xz":
-            self._fin = LZMAFile(self._fp)
+            self._fin = cast(BinaryIO, LZMAFile(self._fp))
         elif path.suffix == ".zst":
-            self._fin = cast(IO[bytes], ZstdDecompressor().stream_reader(self._fp))
+            self._fin = cast(BinaryIO, ZstdDecompressor().stream_reader(self._fp))
         else:
             if warn_uncompressed:
                 _LOGGER.warning(
