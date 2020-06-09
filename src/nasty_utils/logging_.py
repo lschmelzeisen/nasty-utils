@@ -18,7 +18,6 @@ import logging
 from datetime import datetime
 from inspect import getfile
 from logging import FileHandler, Formatter, Handler, LogRecord, StreamHandler, getLogger
-from os import environ
 from pathlib import Path
 from sys import argv
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, TextIO, cast
@@ -26,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, TextIO, cast
 from colorlog import ColoredFormatter
 from tqdm import tqdm
 from typing_extensions import Final
+from xdg import XDG_DATA_HOME
 
 from nasty_utils.config import Config, ConfigAttr, ConfigSection
 from nasty_utils.typing_ import checked_cast
@@ -125,9 +125,7 @@ class LoggingConfig(Config):
             format_args = {
                 "asctime": datetime.now().isoformat(),
                 "prog": Path(argv[0]).name,
-                "xdg_data_home": Path(
-                    environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
-                ),
+                "xdg_data_home": XDG_DATA_HOME,
             }
 
             log_file = Path(str(self.logging.file).format(**format_args))
