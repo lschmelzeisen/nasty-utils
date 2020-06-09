@@ -35,7 +35,6 @@ from nasty_utils import (
     LoggingConfig,
     Program,
     ProgramMeta,
-    log_level_num,
 )
 from tests._util.path import change_dir
 
@@ -219,13 +218,14 @@ class ErrorCommandProgram(Program[None]):
 
 
 @contextmanager
-def _write_logging_config(config_file: Path, level: str) -> Iterator[None]:
+def _write_logging_config(config_file: Path, value: bool) -> Iterator[None]:
     Path.mkdir(config_file.parent, exist_ok=True, parents=True)
     with config_file.open("w", encoding="UTF-8") as fout:
         fout.write(
             f"""
             [logging]
-            cli_level = "{level}"
+            version = 1
+            disable_existing_loggers = {"true" if value else "false"}
             """
         )
 
@@ -238,14 +238,14 @@ def _write_logging_config(config_file: Path, level: str) -> Iterator[None]:
 def test_program_config(tmp_path: Path) -> None:
     prog: Program[Any]
     with change_dir(tmp_path / "a") as path:
-        with _write_logging_config(path / ".config" / "myprog.toml", "DEBUG"):
+        with _write_logging_config(path / ".config" / "myprog.toml", True):
             prog = MyProgram("f")
-            assert prog.config.logging.cli_level == log_level_num("DEBUG")
+            assert prog.config.logging["disable_existing_loggers"]
 
     with change_dir(tmp_path / "b") as path:
-        with _write_logging_config(path / "myprog.toml", "WARN"):
+        with _write_logging_config(path / "myprog.toml", False):
             prog = MyProgram("f", "--config", "myprog.toml")
-            assert prog.config.logging.cli_level == log_level_num("WARN")
+            assert not prog.config.logging["disable_existing_loggers"]
 
     with change_dir(tmp_path / "c"):
         with pytest.raises(FileNotFoundError):

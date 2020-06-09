@@ -21,5 +21,4 @@ from nasty_utils import LoggingConfig
 
 
 def pytest_configure(config: Config) -> None:
-    log_config = LoggingConfig(logging={"level": "DEBUG"})
-    log_config.setup_pytest_logging(config)
+    LoggingConfig.setup_pytest_logging(config)

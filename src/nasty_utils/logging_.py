@@ -14,57 +14,56 @@
 # limitations under the License.
 #
 
-import logging
 from datetime import datetime
 from inspect import getfile
-from logging import FileHandler, Formatter, Handler, LogRecord, StreamHandler, getLogger
+from logging import DEBUG, FileHandler, LogRecord, StreamHandler
+from logging.config import dictConfig
 from pathlib import Path
 from sys import argv
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, TextIO, cast
+from typing import TYPE_CHECKING, Any, Mapping, Optional, TextIO, Union, cast
 
-from colorlog import ColoredFormatter
 from tqdm import tqdm
 from typing_extensions import Final
 from xdg import XDG_DATA_HOME
 
-from nasty_utils.config import Config, ConfigAttr, ConfigSection
-from nasty_utils.typing_ import checked_cast
+from nasty_utils.config import Config, ConfigAttr
 
 if TYPE_CHECKING:
     from _pytest.config import Config as PytestConfig
 
-_LOG_LEVELS: Final[Sequence[str]] = [
-    "CRITICAL",
-    "FATAL",
-    "ERROR",
-    "WARNING",
-    "WARN",
-    "INFO",
-    "DEBUG",
-    "NOTSET",
-]
-
-
-def log_level_num(log_level: str) -> int:
-    log_level = log_level.upper()
-    if log_level not in _LOG_LEVELS:
-        raise ValueError(
-            f"Not a valid log level: '{log_level}'. Valid values are: "
-            f"{', '.join(_LOG_LEVELS)}."
-        )
-    return checked_cast(int, getattr(logging, log_level))
-
-
-def log_level(log_level_num: int) -> str:
-    for level in _LOG_LEVELS:
-        if getattr(logging, level) == log_level_num:
-            return level
-    raise ValueError(f"Not a valid log level number: {log_level_num}.")
+DEFAULT_LOG_FORMAT: Final[str] = "{asctime} {levelname:8} [ {name:42} ] {message}"
+DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "colored": {
+            "()": "colorlog.ColoredFormatter",
+            "format": "{log_color}{message}",
+            "style": "{",
+        },
+        "detailed": {"format": DEFAULT_LOG_FORMAT, "style": "{"},
+    },
+    "handlers": {
+        "console": {
+            "class": "nasty_utils.TqdmAwareStreamHandler",
+            "level": "INFO",
+            "formatter": "colored",
+        },
+        "file": {
+            "class": "nasty_utils.TqdmAwareFileHandler",
+            "formatter": "detailed",
+            "filename": "{XDG_DATA_HOME}/logs/{argv0}-{asctime:%Y%m%d-%H%M%S}.log",
+            "encoding": "UTF-8",
+            "symlink": "{XDG_DATA_HOME}/logs/{argv0}-current.log",
+        },
+    },
+    "root": {"level": "DEBUG", "handlers": ["console", "file"]},
+}
 
 
 # See: https://stackoverflow.com/a/38739634/211404
-class TqdmStreamHandler(StreamHandler):
-    """Logging handler that prints log messages using tqdm.write().
+class TqdmAwareStreamHandler(StreamHandler):
+    """Stream handler that prints log messages using tqdm.write().
 
     Necessary, so that log messages do not disrupt an active tqdm progress bar.
     """
@@ -80,81 +79,56 @@ class TqdmStreamHandler(StreamHandler):
             self.handleError(record)
 
 
-class _LoggingSection(Config):
-    date_format: str = ConfigAttr(default="%Y-%m-%d %H:%M:%S")
+class DynamicFileHandler(FileHandler):
+    """File handler allowing to include format placeholders in the filename.
 
-    cli: bool = ConfigAttr(default=True)
-    cli_level: int = ConfigAttr(
-        default=logging.INFO, deserializer=log_level_num, serializer=log_level
-    )
-    cli_format: str = ConfigAttr(default="{log_color}{message}")
+    Also capable to create a symlink to the resulting file.
+    """
 
-    file: Optional[Path] = ConfigAttr(
-        default=Path("{xdg_data_home}/logs/{prog}-{asctime}.log")
-    )
-    file_level: int = ConfigAttr(
-        default=logging.DEBUG, deserializer=log_level_num, serializer=log_level
-    )
-    file_format: str = ConfigAttr(
-        default="{asctime} {levelname:8} [ {name:46} ] {message}"
-    )
+    def __init__(
+        self,
+        filename: Union[str, Path],
+        mode: str = "a",
+        encoding: Optional[str] = None,
+        delay: bool = False,
+        symlink: Union[None, str, Path] = None,
+    ):
+        now = datetime.now()
+        filename_args = {
+            "asctime": now,
+            "msecs": now.microsecond / 1000,
+            "argv0": Path(argv[0]).name,
+            "XDG_DATA_HOME": XDG_DATA_HOME,
+        }
+        parsed_filename = Path(str(filename).format(**filename_args))
+        parsed_filename.parent.mkdir(parents=True, exist_ok=True)
 
-    loggers: Mapping[str, int] = ConfigAttr(
-        default={}, deserializer=log_level_num, serializer=log_level
-    )
+        super().__init__(parsed_filename, mode, encoding, delay)
+
+        if symlink:
+            parsed_symlink = Path(str(symlink).format(**filename_args))
+            if parsed_symlink.is_symlink() or parsed_symlink.exists():
+                parsed_symlink.unlink()
+            parsed_symlink.symlink_to(parsed_filename.resolve())
 
 
-class LoggingConfig(Config):
-    logging: _LoggingSection = ConfigSection()
+class TqdmAwareFileHandler(DynamicFileHandler):
+    """File handler that prints tqdm progress bars to the log file.
 
-    def setup_logging(self) -> None:
-        root_logger = getLogger()
-        root_logger.setLevel(logging.DEBUG)
+    Necessary, so that tqdm progress bars occur in the log file but without the ascii
+    control characters.
+    """
 
-        if self.logging.cli:
-            cli_handler = TqdmStreamHandler()
-            cli_handler.setFormatter(
-                ColoredFormatter(
-                    self.logging.cli_format, self.logging.date_format, style="{",
-                )
-            )
-            cli_handler.setLevel(self.logging.cli_level)
-            root_logger.addHandler(cli_handler)
+    def __init__(
+        self,
+        filename: Union[str, Path],
+        mode: str = "a",
+        encoding: Optional[str] = None,
+        delay: bool = False,
+        symlink: Union[None, str, Path] = None,
+    ):
+        super().__init__(filename, mode, encoding, delay, symlink)
 
-        if self.logging.file:
-            format_args = {
-                "asctime": datetime.now().isoformat(),
-                "prog": Path(argv[0]).name,
-                "xdg_data_home": XDG_DATA_HOME,
-            }
-
-            log_file = Path(str(self.logging.file).format(**format_args))
-            log_file.parent.mkdir(parents=True, exist_ok=True)
-
-            file_handler = FileHandler(log_file, encoding="UTF-8")
-            file_handler.setFormatter(
-                Formatter(self.logging.file_format, self.logging.date_format, style="{")
-            )
-            file_handler.setLevel(self.logging.file_level)
-            root_logger.addHandler(file_handler)
-            self._forward_tqdm_to_handler(file_handler)
-
-            # If date formatting took place, create "current" symlink.
-            if "{asctime" in str(self.logging.file):
-                symlink_file = Path(
-                    str(self.logging.file).format(
-                        **dict(format_args, asctime="current")
-                    )
-                )
-                if symlink_file.is_symlink() or symlink_file.exists():
-                    symlink_file.unlink()
-                symlink_file.symlink_to(log_file.resolve())
-
-        for logger, level in self.logging.loggers.items():
-            getLogger(logger).setLevel(level)
-
-    @staticmethod
-    def _forward_tqdm_to_handler(handler: Handler) -> None:
         orig_refresh = tqdm.refresh
 
         def patched_refresh(
@@ -164,14 +138,15 @@ class LoggingConfig(Config):
         ) -> bool:
             result = orig_refresh(tqdm_self, nolock, lock_args)
 
-            format_dict = tqdm_self.format_dict
-            format_dict["ncols"] = 80
+            format_dict = cast(
+                Mapping[str, object], dict(tqdm_self.format_dict, ncols=80)
+            )
             progress_bar = tqdm_self.format_meter(**format_dict)
 
-            handler.emit(
+            self.emit(
                 LogRecord(
                     name="tqdm.std",
-                    level=logging.DEBUG,
+                    level=DEBUG,
                     pathname=getfile(tqdm),
                     lineno=-1,
                     msg=progress_bar,
@@ -186,15 +161,26 @@ class LoggingConfig(Config):
         # https://github.com/python/mypy/issues/2427
         tqdm.refresh = patched_refresh  # type: ignore
 
-    def setup_pytest_logging(self, pytest_config: "PytestConfig") -> None:
-        logging.addLevelName(logging.WARNING, "WARN")
-        logging.addLevelName(logging.CRITICAL, "CRIT")
 
-        pytest_config.option.log_level = log_level(self.logging.file_level)
-        pytest_config.option.log_format = self.logging.file_format
+class LoggingConfig(Config):
+    logging: Mapping[str, object] = ConfigAttr(default=DEFAULT_LOG_CONFIG)
+
+    def setup_logging(self) -> None:
+        dictConfig(dict(self.logging))
+
+    @classmethod
+    def setup_pytest_logging(
+        cls,
+        pytest_config: "PytestConfig",
+        *,
+        level: str = "DEBUG",
+        format_: str = DEFAULT_LOG_FORMAT,
+    ) -> None:
+        pytest_config.option.log_level = level
+        pytest_config.option.log_format = format_
 
         # When running pytest from PyCharm enable live cli logging so that we can click
         # a test case and see (only) its log output. When not using PyCharm, this
         # functionality is available via the html report.
         if pytest_config.pluginmanager.hasplugin("teamcity.pytest_plugin"):
-            pytest_config.option.log_cli_level = log_level(self.logging.file_level)
+            pytest_config.option.log_cli_level = level

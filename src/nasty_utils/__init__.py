@@ -33,7 +33,14 @@ from nasty_utils.download import (
     sha256sum,
 )
 from nasty_utils.io_ import DecompressingTextIOWrapper
-from nasty_utils.logging_ import LoggingConfig, log_level, log_level_num
+from nasty_utils.logging_ import (
+    DEFAULT_LOG_CONFIG,
+    DEFAULT_LOG_FORMAT,
+    DynamicFileHandler,
+    LoggingConfig,
+    TqdmAwareFileHandler,
+    TqdmAwareStreamHandler,
+)
 from nasty_utils.misc import camel_case_split, parse_enum_arg
 from nasty_utils.program import (
     Argument,
@@ -63,9 +70,12 @@ __all__ = [
     "download_file_with_progressbar",
     "sha256sum",
     "DecompressingTextIOWrapper",
+    "DEFAULT_LOG_FORMAT",
+    "DEFAULT_LOG_CONFIG",
+    "DynamicFileHandler",
     "LoggingConfig",
-    "log_level",
-    "log_level_num",
+    "TqdmAwareFileHandler",
+    "TqdmAwareStreamHandler",
     "camel_case_split",
     "parse_enum_arg",
     "Argument",
