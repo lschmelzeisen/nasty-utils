@@ -22,6 +22,7 @@ from pathlib import Path
 from sys import argv
 from typing import TYPE_CHECKING, Any, Mapping, Optional, TextIO, Union, cast
 
+from overrides import overrides
 from tqdm import tqdm
 from typing_extensions import Final
 from xdg import XDG_DATA_HOME
@@ -68,6 +69,7 @@ class TqdmAwareStreamHandler(StreamHandler):
     Necessary, so that log messages do not disrupt an active tqdm progress bar.
     """
 
+    @overrides
     def emit(self, record: LogRecord) -> None:
         try:
             msg = self.format(record)
@@ -85,6 +87,7 @@ class DynamicFileHandler(FileHandler):
     Also capable to create a symlink to the resulting file.
     """
 
+    @overrides
     def __init__(
         self,
         filename: Union[str, Path],
@@ -119,6 +122,7 @@ class TqdmAwareFileHandler(DynamicFileHandler):
     control characters.
     """
 
+    @overrides
     def __init__(
         self,
         filename: Union[str, Path],

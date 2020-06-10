@@ -16,6 +16,7 @@
 
 import argparse
 from argparse import ArgumentParser
+from logging import Logger, getLogger
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -32,12 +33,16 @@ from typing import (
     cast,
 )
 
+import toml
 import typing_inspect
+from typing_extensions import Final
 
 from nasty_utils._util.argparse_ import SingleMetavarHelpFormatter
 from nasty_utils.config import Config
 from nasty_utils.logging_ import LoggingConfig
 from nasty_utils.typing_ import checked_cast
+
+_LOGGER: Final[Logger] = getLogger(__name__)
 
 _T_Config = TypeVar("_T_Config", bound=Optional[Config])
 
@@ -156,11 +161,14 @@ class Program(Generic[_T_Config]):
         self.config = self._load_config()
         self.command: Optional[Command[_T_Config]] = None
         self._parse_args()
+        self._log_state()
 
         try:
             self.run()
         except ArgumentError as e:
             self._argparser.error(e.message)  # noqa: B306
+
+        _LOGGER.debug("Done.")
 
     def run(self) -> None:
         if self.command:
@@ -326,9 +334,6 @@ class Program(Generic[_T_Config]):
                 self._meta.config_file, self._meta.config_dir
             )
 
-        if isinstance(config, LoggingConfig):
-            config.setup_logging()
-
         return cast(_T_Config, config)
 
     def _parse_args(self) -> None:
@@ -369,3 +374,30 @@ class Program(Generic[_T_Config]):
                         )
 
                     setattr(argument_holder, name, value)
+
+    def _log_state(self) -> None:
+        if isinstance(self.config, LoggingConfig):
+            self.config.setup_logging()
+
+        _LOGGER.debug(f"Running {self._meta.name} ({type(self)}):")
+        _LOGGER.debug(f"  Version: {self._meta.version}.")
+        _LOGGER.debug(f"  Raw args: {list(self._raw_args)}")
+        _LOGGER.debug(f"  Argparse args: {vars(self._parsed_args)}")
+
+        if self.command:
+            _LOGGER.debug(
+                f"  Command: {self.command.meta().name} ({type(self.command)})"
+            )
+
+        _LOGGER.debug("  Parsed args:")
+        argument_holder = self.command or self
+        for class_ in reversed(type(argument_holder).mro()):
+            for name, meta in vars(class_).items():
+                if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
+                    continue
+                _LOGGER.debug(f"    {name} = {repr(getattr(argument_holder, name))}")
+
+        if self.config:
+            _LOGGER.debug("  Config:")
+            for line in toml.dumps(cast(Config, self.config).serialize()).splitlines():
+                _LOGGER.debug(f"    {line}")
