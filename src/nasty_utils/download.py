@@ -48,7 +48,12 @@ def download_file_with_progressbar(url: str, dest: Path, description: str) -> No
 
     wrote_bytes = 0
     with dest.open("wb") as fout, tqdm(
-        desc=description, total=total_size, unit="B", unit_scale=True, unit_divisor=1024
+        desc=description,
+        total=total_size,
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        dynamic_ncols=True,
     ) as progress_bar:
         for chunk in response.iter_content(chunk_size):
             wrote_bytes += fout.write(chunk)

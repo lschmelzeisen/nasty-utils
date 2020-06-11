@@ -71,6 +71,7 @@ class DecompressingTextIOWrapper(TextIOWrapper):
                 unit="B",
                 unit_scale=True,
                 unit_divisor=1024,
+                dynamic_ncols=True,
             )
 
         super().__init__(self._fin, encoding=encoding)
