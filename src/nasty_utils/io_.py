@@ -17,7 +17,7 @@
 from bz2 import BZ2File
 from gzip import GzipFile
 from io import TextIOWrapper
-from logging import Logger, getLogger
+from logging import getLogger
 from lzma import LZMAFile
 from pathlib import Path
 from types import TracebackType
@@ -25,10 +25,11 @@ from typing import BinaryIO, Optional, Type, cast
 
 from overrides import overrides
 from tqdm import tqdm
-from typing_extensions import Final
 from zstandard import ZstdDecompressor
 
-_LOGGER: Final[Logger] = getLogger(__name__)
+from nasty_utils.logging_ import ColoredBraceStyleAdapter
+
+_LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 class DecompressingTextIOWrapper(TextIOWrapper):
@@ -58,8 +59,9 @@ class DecompressingTextIOWrapper(TextIOWrapper):
         else:
             if warn_uncompressed:
                 _LOGGER.warning(
-                    f"Could not detect compression type of file '{path}' from its "
-                    "extension, treating as uncompressed file."
+                    "Could not detect compression type of file '{}' from its "
+                    "extension, treating as uncompressed file.",
+                    path,
                 )
             self._fin = self._fp
 

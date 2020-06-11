@@ -14,52 +14,153 @@
 # limitations under the License.
 #
 
+import string
 from datetime import datetime
 from inspect import getfile
-from logging import DEBUG, FileHandler, LogRecord, StreamHandler
-from logging.config import dictConfig
+from logging import DEBUG, FileHandler, Logger, LoggerAdapter, LogRecord, StreamHandler
 from pathlib import Path
 from sys import argv
-from typing import TYPE_CHECKING, Any, Mapping, Optional, TextIO, Union, cast
+from typing import (
+    Any,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    TextIO,
+    Tuple,
+    Union,
+    cast,
+)
 
+from colorlog import ColoredFormatter, escape_codes
 from overrides import overrides
 from tqdm import tqdm
-from typing_extensions import Final
 from xdg import XDG_DATA_HOME
 
-from nasty_utils.config import Config, ConfigAttr
 
-if TYPE_CHECKING:
-    from _pytest.config import Config as PytestConfig
+class _ColoredStringFormatter(string.Formatter):
+    @overrides
+    def format(*args: Any, **kwargs: Any) -> str:
+        return (
+            string.Formatter.format(*args, **kwargs)
+            # The following is needed so that original parentheses in the result are
+            # preserved after the formatting.
+            .replace("{", "{{")
+            .replace("}", "}}")
+            .replace("{{color_before}}", "{color_before}")
+            .replace("{{color_after}}", "{color_after}")
+        )
 
-DEFAULT_LOG_FORMAT: Final[str] = "{asctime} {levelname:8} [ {name:42} ] {message}"
-DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "colored": {
-            "()": "colorlog.ColoredFormatter",
-            "format": "{log_color}{message}",
-            "style": "{",
-        },
-        "detailed": {"format": DEFAULT_LOG_FORMAT, "style": "{"},
-    },
-    "handlers": {
-        "console": {
-            "class": "nasty_utils.TqdmAwareStreamHandler",
-            "level": "INFO",
-            "formatter": "colored",
-        },
-        "file": {
-            "class": "nasty_utils.TqdmAwareFileHandler",
-            "formatter": "detailed",
-            "filename": "{XDG_DATA_HOME}/logs/{argv0}-{asctime:%Y%m%d-%H%M%S}.log",
-            "encoding": "UTF-8",
-            "symlink": "{XDG_DATA_HOME}/logs/{argv0}-current.log",
-        },
-    },
-    "root": {"level": "DEBUG", "handlers": ["console", "file"]},
-}
+    @overrides
+    def format_field(self, value: object, format_spec: str) -> str:
+        return (
+            f"{{color_before}}{super().format_field(value, format_spec)}{{color_after}}"
+        )
+
+
+# See:
+# https://docs.python.org/3/howto/logging-cookbook.html#use-of-alternative-formatting-styles
+class ColoredBraceStyleAdapter(LoggerAdapter):
+    @overrides
+    def __init__(self, logger: Logger, extra: Optional[Mapping[str, object]] = None):
+        super().__init__(logger, extra or {})
+
+    @overrides
+    def log(self, level: int, msg: object, *args: object, **kwargs: object) -> None:
+        if self.isEnabledFor(level):
+            msg_raw, log_kwargs = self.process(msg, kwargs)
+
+            msg_color_fmt = _ColoredStringFormatter().format(msg_raw, *args, **kwargs)
+            msg = msg_color_fmt.format(color_before="", color_after="")
+            if "{color_before}" in msg_color_fmt:
+                cast(MutableMapping[str, object], log_kwargs["extra"])[
+                    "msg_color_fmt"
+                ] = msg_color_fmt
+
+            self.logger._log(level, msg, (), **log_kwargs)
+
+    @overrides
+    def process(
+        self, msg: object, kwargs: MutableMapping[str, object]
+    ) -> Tuple[object, MutableMapping[str, object]]:
+        # Default LoggerAdapter.process() implementation is buggy and reuses same extra
+        # dict for all LogRecords (also overrides potentially existing extra dict).
+        if "extra" not in kwargs:
+            kwargs["extra"] = {}
+        cast(MutableMapping[str, object], kwargs["extra"]).update(self.extra)
+        return msg, kwargs
+
+
+class ColoredArgumentsFormatter(ColoredFormatter):
+    @overrides
+    def __init__(
+        self,
+        fmt: Optional[str] = None,
+        datefmt: Optional[str] = None,
+        style: str = "%",
+        log_colors: Optional[Mapping[str, str]] = None,
+        reset: bool = True,
+        secondary_log_colors: Optional[Mapping[str, Mapping[str, str]]] = None,
+        arg_color: str = "white",
+    ):
+        if style != "{":
+            raise NotImplementedError("style != '{' is not supported yet.")
+
+        super().__init__(
+            fmt=fmt,
+            datefmt=datefmt,
+            style=style,
+            log_colors=log_colors,
+            reset=reset,
+            secondary_log_colors=secondary_log_colors,
+        )
+
+        self._arg_color = arg_color
+        self._message_color_modifiers: Sequence[str] = []
+        for (
+            _literal_text,
+            field_name,
+            _format_spec,
+            _conversion,
+        ) in string.Formatter().parse(cast(str, self._fmt)):
+            if not field_name:
+                continue
+            elif field_name == "message":
+                break
+            elif field_name == "reset":
+                self._message_color_modifiers = []
+            elif field_name.endswith("log_color"):
+                self._message_color_modifiers.append(field_name)
+
+    @overrides
+    def format(self, record: LogRecord) -> str:
+        orig_record_msg = record.msg
+        msg_color_fmt = getattr(record, "msg_color_fmt", None)
+        if msg_color_fmt:
+            record.msg = msg_color_fmt
+
+        result = super().format(record)
+        if msg_color_fmt:
+            # The following had to be duplicated from ColoredForamtter.format()
+            # because there is no way to access the results from a subclass.
+            colors = {"log_color": self.color(self.log_colors, record.levelname)}
+            if self.secondary_log_colors:
+                for name, log_colors in self.secondary_log_colors.items():
+                    colors[name + "_log_color"] = self.color(
+                        log_colors, record.levelname
+                    )
+
+            result = result.format(
+                color_before=escape_codes["reset"] + escape_codes[self._arg_color],
+                color_after=(
+                    escape_codes["reset"]
+                    + "".join(colors[c] for c in self._message_color_modifiers)
+                ),
+            )
+
+        if msg_color_fmt:
+            record.msg = orig_record_msg
+        return result
 
 
 # See: https://stackoverflow.com/a/38739634/211404
@@ -164,27 +265,3 @@ class TqdmAwareFileHandler(DynamicFileHandler):
         # No way to type the following yet, see:
         # https://github.com/python/mypy/issues/2427
         tqdm.refresh = patched_refresh  # type: ignore
-
-
-class LoggingConfig(Config):
-    logging: Mapping[str, object] = ConfigAttr(default=DEFAULT_LOG_CONFIG)
-
-    def setup_logging(self) -> None:
-        dictConfig(dict(self.logging))
-
-    @classmethod
-    def setup_pytest_logging(
-        cls,
-        pytest_config: "PytestConfig",
-        *,
-        level: str = "DEBUG",
-        format_: str = DEFAULT_LOG_FORMAT,
-    ) -> None:
-        pytest_config.option.log_level = level
-        pytest_config.option.log_format = format_
-
-        # When running pytest from PyCharm enable live cli logging so that we can click
-        # a test case and see (only) its log output. When not using PyCharm, this
-        # functionality is available via the html report.
-        if pytest_config.pluginmanager.hasplugin("teamcity.pytest_plugin"):
-            pytest_config.option.log_cli_level = level

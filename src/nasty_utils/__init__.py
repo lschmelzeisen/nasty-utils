@@ -34,12 +34,16 @@ from nasty_utils.download import (
 )
 from nasty_utils.io_ import DecompressingTextIOWrapper
 from nasty_utils.logging_ import (
-    DEFAULT_LOG_CONFIG,
-    DEFAULT_LOG_FORMAT,
+    ColoredArgumentsFormatter,
+    ColoredBraceStyleAdapter,
     DynamicFileHandler,
-    LoggingConfig,
     TqdmAwareFileHandler,
     TqdmAwareStreamHandler,
+)
+from nasty_utils.logging_config import (
+    DEFAULT_LOG_CONFIG,
+    DEFAULT_LOG_FORMAT,
+    LoggingConfig,
 )
 from nasty_utils.misc import camel_case_split, parse_enum_arg
 from nasty_utils.program import (
@@ -70,12 +74,14 @@ __all__ = [
     "download_file_with_progressbar",
     "sha256sum",
     "DecompressingTextIOWrapper",
-    "DEFAULT_LOG_FORMAT",
-    "DEFAULT_LOG_CONFIG",
+    "ColoredArgumentsFormatter",
+    "ColoredBraceStyleAdapter",
     "DynamicFileHandler",
-    "LoggingConfig",
     "TqdmAwareFileHandler",
     "TqdmAwareStreamHandler",
+    "DEFAULT_LOG_FORMAT",
+    "DEFAULT_LOG_CONFIG",
+    "LoggingConfig",
     "camel_case_split",
     "parse_enum_arg",
     "Argument",

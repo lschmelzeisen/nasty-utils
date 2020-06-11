@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from logging import Logger, getLogger
+from logging import getLogger
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -32,12 +32,12 @@ from typing import (
 
 import toml
 import typing_inspect
-from typing_extensions import Final
 from xdg import XDG_CONFIG_DIRS, XDG_CONFIG_HOME
 
+from nasty_utils.logging_ import ColoredBraceStyleAdapter
 from nasty_utils.typing_ import checked_cast
 
-_LOGGER: Final[Logger] = getLogger(__name__)
+_LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 class _ConfigAttr:
@@ -232,7 +232,7 @@ class Config:
 
     @classmethod
     def load_from_config_file(cls: Type[_T_Config], config_file: Path) -> _T_Config:
-        _LOGGER.debug(f"Loading {cls.__name__} from '{config_file}'...")
+        _LOGGER.debug("Loading {} from '{}'...", cls.__name__, config_file)
         with config_file.open(encoding="UTF-8") as fin:
             return cls.load_from_str(fin.read(), config_file=config_file)
 

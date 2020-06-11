@@ -17,15 +17,16 @@
 import hashlib
 from http import HTTPStatus
 from io import BytesIO
-from logging import Logger, getLogger
+from logging import getLogger
 from pathlib import Path
 from typing import BinaryIO, Union
 
 import requests
 from tqdm import tqdm
-from typing_extensions import Final
 
-_LOGGER: Final[Logger] = getLogger(__name__)
+from nasty_utils.logging_ import ColoredBraceStyleAdapter
+
+_LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 class FileNotOnServerError(Exception):
@@ -41,7 +42,7 @@ def download_file_with_progressbar(url: str, dest: Path, description: str) -> No
             f"Unexpected status code {status.value} {status.name}."
         )
 
-    _LOGGER.debug(f"Downloading url '{url}' to file '{dest}'...")
+    _LOGGER.debug("Downloading url '{}' to file '{}'...", url, dest)
 
     total_size = int(response.headers.get("content-length", 0))
     chunk_size = 2 ** 12  # 4 Kib

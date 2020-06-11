@@ -16,7 +16,7 @@
 
 import argparse
 from argparse import ArgumentParser
-from logging import Logger, getLogger
+from logging import getLogger
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -35,14 +35,14 @@ from typing import (
 
 import toml
 import typing_inspect
-from typing_extensions import Final
 
 from nasty_utils._util.argparse_ import SingleMetavarHelpFormatter
 from nasty_utils.config import Config
-from nasty_utils.logging_ import LoggingConfig
+from nasty_utils.logging_ import ColoredBraceStyleAdapter
+from nasty_utils.logging_config import LoggingConfig
 from nasty_utils.typing_ import checked_cast
 
-_LOGGER: Final[Logger] = getLogger(__name__)
+_LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 _T_Config = TypeVar("_T_Config", bound=Optional[Config])
 
@@ -379,15 +379,13 @@ class Program(Generic[_T_Config]):
         if isinstance(self.config, LoggingConfig):
             self.config.setup_logging()
 
-        _LOGGER.debug(f"Running {self._meta.name} ({type(self)}):")
-        _LOGGER.debug(f"  Version: {self._meta.version}.")
-        _LOGGER.debug(f"  Raw args: {list(self._raw_args)}")
-        _LOGGER.debug(f"  Argparse args: {vars(self._parsed_args)}")
+        _LOGGER.debug("Running {} ({}):", self._meta.name, type(self))
+        _LOGGER.debug("  Version: {}", self._meta.version)
+        _LOGGER.debug("  Raw args: {}", list(self._raw_args))
+        _LOGGER.debug("  Argparse args: {}", vars(self._parsed_args))
 
         if self.command:
-            _LOGGER.debug(
-                f"  Command: {self.command.meta().name} ({type(self.command)})"
-            )
+            _LOGGER.debug("  Command: {} ({})", self.command.meta().name, self.command)
 
         _LOGGER.debug("  Parsed args:")
         argument_holder = self.command or self
@@ -395,9 +393,9 @@ class Program(Generic[_T_Config]):
             for name, meta in vars(class_).items():
                 if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
                     continue
-                _LOGGER.debug(f"    {name} = {repr(getattr(argument_holder, name))}")
+                _LOGGER.debug("    {} = {}", name, repr(getattr(argument_holder, name)))
 
         if self.config:
             _LOGGER.debug("  Config:")
             for line in toml.dumps(cast(Config, self.config).serialize()).splitlines():
-                _LOGGER.debug(f"    {line}")
+                _LOGGER.debug("    {}", line)
