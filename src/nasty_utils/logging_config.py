@@ -36,6 +36,24 @@ DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
             "arg_color": "reset",
         },
         "detailed": {"format": DEFAULT_LOG_FORMAT, "style": "{"},
+        "json": {
+            "()": "jsonlog.JSONFormatter",
+            "keys": [
+                "timestamp",
+                "levelno",
+                "level",
+                "message",
+                "name",
+                "pathname",
+                "lineno",
+                "thread",
+                "threadName",
+                "process",
+                "processName",
+                "traceback",
+            ],
+            "timespec": "milliseconds",
+        },
     },
     "handlers": {
         "console": {
@@ -45,7 +63,7 @@ DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
         },
         "file": {
             "class": "nasty_utils.TqdmAwareFileHandler",
-            "formatter": "detailed",
+            "formatter": "json",
             "filename": "{XDG_DATA_HOME}/logs/{argv0}-{asctime:%Y%m%d-%H%M%S}.log",
             "encoding": "UTF-8",
             "symlink": "{XDG_DATA_HOME}/logs/{argv0}-current.log",
