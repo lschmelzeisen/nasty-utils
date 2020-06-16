@@ -67,6 +67,12 @@ class _Flag:
         self.desc = desc
         self.default = default
 
+    def __str__(self) -> str:
+        result = "--" + self.name
+        if self.short_name:
+            result = "-" + self.short_name + "/" + result
+        return result
+
 
 class _Argument:
     def __init__(
@@ -90,6 +96,12 @@ class _Argument:
 
         if self.required and self.default:
             raise ValueError("Can not use required together with default.")
+
+    def __str__(self) -> str:
+        result = "--" + self.name
+        if self.short_name:
+            result = "-" + self.short_name + "/" + result
+        return result
 
 
 class ArgumentError(Exception):
