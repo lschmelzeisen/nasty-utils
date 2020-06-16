@@ -367,7 +367,18 @@ class Program(Generic[_T_Config]):
                     valid_types = (
                         type_args if type_origin is Union else (type_,)  # type: ignore
                     )
-                    if not any(isinstance(value, t) for t in valid_types):
+
+                    type_check_passed = False
+                    if type_origin is Type:
+                        type_check_passed = issubclass(value, type_args[0])
+                    elif type_origin is Union:
+                        type_check_passed = any(isinstance(value, t) for t in type_args)
+                    elif type_origin is Callable:
+                        type_check_passed = callable(value)
+                    else:
+                        type_check_passed = isinstance(value, type_)
+
+                    if not type_check_passed:
                         raise ValueError(
                             f"Deserialized value {repr(value)} of argument {name} is "
                             f"not of type {type_}."
