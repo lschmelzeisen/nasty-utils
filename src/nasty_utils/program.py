@@ -156,6 +156,9 @@ class Program(Generic[_T_Config]):
 
     def __init__(self, *args: str):
         self._meta = self.meta()
+        if issubclass(self._meta.config_type, LoggingConfig):
+            self._meta.config_type.setup_memory_logging()
+
         self._raw_args = args
         self._parsed_args = self._load_args()
         self.config = self._load_config()
@@ -336,7 +339,7 @@ class Program(Generic[_T_Config]):
 
         return cast(_T_Config, config)
 
-    def _parse_args(self) -> None:
+    def _parse_args(self) -> None:  # noqa: C901
         command_cls = cast(
             Optional[Type[Command[_T_Config]]],
             getattr(self._parsed_args, "command", None),
@@ -364,16 +367,16 @@ class Program(Generic[_T_Config]):
 
                     type_origin = typing_inspect.get_origin(type_)
                     type_args = typing_inspect.get_args(type_, evaluate=True)
-                    valid_types = (
-                        type_args if type_origin is Union else (type_,)  # type: ignore
-                    )
 
                     type_check_passed = False
-                    if type_origin is Type:
-                        type_check_passed = issubclass(value, type_args[0])
-                    elif type_origin is Union:
+                    if type_origin is Type:  # type: ignore
+                        type_check_passed = issubclass(
+                            value,  # type: ignore
+                            type_args[0],
+                        )
+                    elif type_origin is Union:  # type: ignore
                         type_check_passed = any(isinstance(value, t) for t in type_args)
-                    elif type_origin is Callable:
+                    elif type_origin is Callable:  # type: ignore
                         type_check_passed = callable(value)
                     else:
                         type_check_passed = isinstance(value, type_)

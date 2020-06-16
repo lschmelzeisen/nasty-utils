@@ -14,7 +14,10 @@
 # limitations under the License.
 #
 
+from logging import NOTSET, getLogger
 from logging.config import dictConfig
+from logging.handlers import MemoryHandler
+from sys import maxsize
 from typing import TYPE_CHECKING, Mapping
 
 from typing_extensions import Final
@@ -76,8 +79,27 @@ DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
 class LoggingConfig(Config):
     logging: Mapping[str, object] = ConfigAttr(default=DEFAULT_LOG_CONFIG)
 
+    @classmethod
+    def setup_memory_logging(cls) -> None:
+        root = getLogger()
+        root.setLevel(NOTSET)
+        root.addHandler(MemoryHandler(capacity=maxsize, flushLevel=maxsize))
+
     def setup_logging(self) -> None:
+        root = getLogger()
+
+        buffer = []
+        for handler in root.handlers:
+            if isinstance(handler, MemoryHandler):
+                buffer = handler.buffer
+                root.removeHandler(handler)
+                break
+
         dictConfig(dict(self.logging))
+
+        for record in buffer:
+            for handler in root.handlers:
+                handler.handle(record)
 
     @classmethod
     def setup_pytest_logging(
