@@ -292,10 +292,10 @@ class Config:
             return [cls._serialize_value(x, serializer) for x in value]
         elif isinstance(value, Mapping):
             return {k: cls._serialize_value(v, serializer) for k, v in value.items()}
-        elif value is None:
-            return None
         elif serializer is not None:
             return serializer(value)
+        elif value is None:
+            return None
         elif isinstance(value, Path):
             return str(value)
         else:
