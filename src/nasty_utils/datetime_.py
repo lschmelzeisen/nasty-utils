@@ -14,14 +14,17 @@
 # limitations under the License.
 #
 
-from datetime import date, datetime, timedelta
-from typing import Iterable
+from datetime import date, datetime, timedelta, tzinfo
+from typing import Iterable, Optional
 
 from nasty_utils.program import ArgumentError
 
 
 def parse_yyyy_mm_dd(s: str) -> date:
-    return datetime.strptime(s, "%Y-%m-%d").date()
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except ValueError:
+        return datetime.strptime(s, "%Y%m%d").date()
 
 
 def parse_yyyy_mm_dd_arg(s: str) -> date:
@@ -38,7 +41,10 @@ def format_yyyy_mm_dd(d: date) -> str:
 
 
 def parse_yyyy_mm(s: str) -> date:
-    return datetime.strptime(s, "%Y-%m").date()
+    try:
+        return datetime.strptime(s, "%Y-%m").date()
+    except ValueError:
+        return datetime.strptime(s, "%Y%m").date()
 
 
 def parse_yyyy_mm_arg(s: str) -> date:
@@ -54,17 +60,6 @@ def format_yyyy_mm(d: date) -> str:
     return d.strftime("%Y-%m")
 
 
-def advance_date_by_months(current_date: date, num_months: int) -> date:
-    if num_months < 0:
-        raise ValueError(f"Negative number of months {num_months}.")
-
-    result = current_date
-    for _ in range(num_months):
-        result += timedelta(days=32)  # Enough days to surely reach next month.
-        result = result.replace(day=1)
-    return result
-
-
 # Adapted from: https://stackoverflow.com/a/1060352/211404
 def date_range(start_date: date, end_date: date) -> Iterable[date]:
     if start_date > end_date:
@@ -78,9 +73,9 @@ def date_range(start_date: date, end_date: date) -> Iterable[date]:
 
 
 # See: https://stackoverflow.com/a/1937636/211404
-def date_to_datetime(d: date) -> datetime:
-    return datetime.combine(d, datetime.min.time())
+def date_to_datetime(d: date, tzinfo_: Optional[tzinfo]) -> datetime:
+    return datetime.combine(d, datetime.min.time(), tzinfo=tzinfo_)
 
 
-def date_to_timestamp(d: date) -> float:
-    return date_to_datetime(d).timestamp()
+def date_to_timestamp(d: date, tzinfo_: Optional[tzinfo]) -> float:
+    return date_to_datetime(d, tzinfo_).timestamp()
