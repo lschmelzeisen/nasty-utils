@@ -18,10 +18,19 @@ import bz2
 import gzip
 import lzma
 from pathlib import Path
+from typing import Optional, TextIO, cast
 
+from typing_extensions import Protocol
 from zstandard import ZstdCompressor
 
 from nasty_utils import DecompressingTextIOWrapper
+
+
+class _TOpenFunc(Protocol):
+    def __call__(
+        self, filename: Path, mode: str, encoding: Optional[str] = None
+    ) -> TextIO:
+        ...
 
 
 def test_decompressing_text_io_wrapper(tmp_path: Path) -> None:
@@ -49,9 +58,9 @@ def test_decompressing_text_io_wrapper(tmp_path: Path) -> None:
             assert [content[4:newline_pos], content[newline_pos:]] == list(fin)
 
     for extension, open_func in [
-        ("gz", gzip.open),
-        ("bz2", bz2.open),
-        ("xz", lzma.open),
+        ("gz", cast(_TOpenFunc, gzip.open)),
+        ("bz2", cast(_TOpenFunc, bz2.open)),
+        ("xz", cast(_TOpenFunc, lzma.open)),
     ]:
         compressed_file = tmp_path / ("file." + extension)
         with open_func(compressed_file, "wt", encoding="UTF-8") as fout:
@@ -62,8 +71,8 @@ def test_decompressing_text_io_wrapper(tmp_path: Path) -> None:
             assert fin.tell() > 0
 
     compressed_file = tmp_path / "file.zst"
-    with compressed_file.open("wb") as fout:
-        fout.write(ZstdCompressor().compress(content.encode(encoding="UTF-8")))
+    with compressed_file.open("wb") as bfout:
+        bfout.write(ZstdCompressor().compress(content.encode(encoding="UTF-8")))
     with DecompressingTextIOWrapper(compressed_file, encoding="UTF-8") as fin:
         assert fin.tell() == 0
         assert fin.read() == content
