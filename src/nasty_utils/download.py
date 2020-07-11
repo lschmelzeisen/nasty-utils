@@ -60,7 +60,7 @@ def download_file_with_progressbar(url: str, dest: Path, description: str) -> No
             wrote_bytes += fout.write(chunk)
             progress_bar.update(len(chunk))
 
-    if total_size != 0 and total_size != wrote_bytes:
+    if total_size != 0 and total_size != wrote_bytes:  # pragma: no cover
         _LOGGER.warning(
             f"  Downloaded file size mismatch, expected {total_size} bytes got "
             f"{wrote_bytes} bytes."
