@@ -57,7 +57,7 @@ class DecompressingTextIOWrapper(TextIOWrapper):
         elif path.suffix == ".zst":
             self._fin = cast(BinaryIO, ZstdDecompressor().stream_reader(self._fp))
         else:
-            if warn_uncompressed:
+            if warn_uncompressed:  # pragma: no cover
                 _LOGGER.warning(
                     "Could not detect compression type of file '{}' from its "
                     "extension, treating as uncompressed file.",
