@@ -116,5 +116,7 @@ class LoggingConfig(Config):
         # When running pytest from PyCharm enable live cli logging so that we can click
         # a test case and see (only) its log output. When not using PyCharm, this
         # functionality is available via the html report.
-        if pytest_config.pluginmanager.hasplugin("teamcity.pytest_plugin"):
+        if pytest_config.pluginmanager.hasplugin(
+            "teamcity.pytest_plugin"
+        ):  # pragma: no cover
             pytest_config.option.log_cli_level = level

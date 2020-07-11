@@ -16,23 +16,26 @@ quiet = true
         # Exclude specific lines from coverage report.
         "# pragma: no cover",
 
-        # Do not complain about missing debug-only code.
+        # Debug-only code.
         "def __repr__",
 
-        # Do not complain if tests do not hit defensive assertion code.
+        # Defensive assertion code.
         "raise AssertionError",
         "raise NotImplementedError",
         "raise RuntimeError",
         "raise ValueError",
 
-        # Do not complain if non-runnable code is not run.
+        # Not able to hit during testing.
         'if __name__ == "__main__":',
 
-        # Do not complain about unimplemented code.
+        # Unimplemented code.
         "pass",
 
-        # Hard to test missing import code.
+        # Missing import code.
         "except ImportError",
+
+        # Type-checking
+        "TYPE_CHECKING",
     ]
     skip_covered = true
     skip_empty = true
