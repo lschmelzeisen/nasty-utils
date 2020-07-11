@@ -75,3 +75,12 @@ def date_range(start_date: date, end_date: date) -> Iterable[date]:
     while current_date <= end_date:
         yield current_date
         current_date += delta
+
+
+# See: https://stackoverflow.com/a/1937636/211404
+def date_to_datetime(d: date) -> datetime:
+    return datetime.combine(d, datetime.min.time())
+
+
+def date_to_timestamp(d: date) -> float:
+    return date_to_datetime(d).timestamp()
