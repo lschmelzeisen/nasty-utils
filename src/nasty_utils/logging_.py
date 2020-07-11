@@ -141,7 +141,7 @@ class ColoredArgumentsFormatter(ColoredFormatter):
 
         result = super().format(record)
         if msg_color_fmt:
-            # The following had to be duplicated from ColoredForamtter.format()
+            # The following had to be duplicated from ColoredFormatter.format()
             # because there is no way to access the results from a subclass.
             colors = {"log_color": self.color(self.log_colors, record.levelname)}
             if self.secondary_log_colors:

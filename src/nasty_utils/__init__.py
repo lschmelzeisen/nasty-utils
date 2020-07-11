@@ -41,11 +41,7 @@ from nasty_utils.logging_ import (
     TqdmAwareFileHandler,
     TqdmAwareStreamHandler,
 )
-from nasty_utils.logging_config import (
-    DEFAULT_LOG_CONFIG,
-    DEFAULT_LOG_FORMAT,
-    LoggingConfig,
-)
+from nasty_utils.logging_config import DEFAULT_LOG_CONFIG, LoggingConfig
 from nasty_utils.misc import camel_case_split, parse_enum_arg
 from nasty_utils.program import (
     Argument,
@@ -81,7 +77,6 @@ __all__ = [
     "DynamicFileHandler",
     "TqdmAwareFileHandler",
     "TqdmAwareStreamHandler",
-    "DEFAULT_LOG_FORMAT",
     "DEFAULT_LOG_CONFIG",
     "LoggingConfig",
     "camel_case_split",

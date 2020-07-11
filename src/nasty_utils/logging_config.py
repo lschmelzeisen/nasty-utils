@@ -27,7 +27,6 @@ from nasty_utils.config import Config, ConfigAttr
 if TYPE_CHECKING:
     from _pytest.config import Config as PytestConfig
 
-DEFAULT_LOG_FORMAT: Final[str] = "{asctime} {levelname:8} [ {name:42} ] {message}"
 DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -38,7 +37,6 @@ DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
             "style": "{",
             "arg_color": "reset",
         },
-        "detailed": {"format": DEFAULT_LOG_FORMAT, "style": "{"},
         "json": {
             "()": "jsonlog.JSONFormatter",
             "keys": [
@@ -107,10 +105,13 @@ class LoggingConfig(Config):
         pytest_config: "PytestConfig",
         *,
         level: str = "DEBUG",
-        format_: str = DEFAULT_LOG_FORMAT,
+        format_: str = (
+            "%(asctime)s,%(msecs)03.f %(levelname).1s [ %(name)-42s ] %(message)s"
+        ),
     ) -> None:
         pytest_config.option.log_level = level
         pytest_config.option.log_format = format_
+        pytest_config.option.log_date_format = "%Y-%m-%d %H:%M:%S"
 
         # When running pytest from PyCharm enable live cli logging so that we can click
         # a test case and see (only) its log output. When not using PyCharm, this
