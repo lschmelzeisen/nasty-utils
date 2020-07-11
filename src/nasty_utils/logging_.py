@@ -95,15 +95,15 @@ class ColoredArgumentsFormatter(ColoredFormatter):
     @overrides
     def __init__(
         self,
-        fmt: Optional[str] = None,
+        fmt: str,
         datefmt: Optional[str] = None,
-        style: str = "%",
+        style: str = "{",
         log_colors: Optional[Mapping[str, str]] = None,
         reset: bool = True,
         secondary_log_colors: Optional[Mapping[str, Mapping[str, str]]] = None,
         arg_color: str = "white",
     ):
-        if style != "{":
+        if style != "{":  # pragma: no cover
             raise NotImplementedError("style != '{' is not supported yet.")
 
         super().__init__(
@@ -129,7 +129,7 @@ class ColoredArgumentsFormatter(ColoredFormatter):
                 break
             elif field_name == "reset":
                 self._message_color_modifiers = []
-            elif field_name.endswith("log_color"):
+            elif field_name.endswith("log_color") or field_name in escape_codes:
                 self._message_color_modifiers.append(field_name)
 
     @overrides
@@ -143,7 +143,9 @@ class ColoredArgumentsFormatter(ColoredFormatter):
         if msg_color_fmt:
             # The following had to be duplicated from ColoredFormatter.format()
             # because there is no way to access the results from a subclass.
-            colors = {"log_color": self.color(self.log_colors, record.levelname)}
+            colors = dict(
+                escape_codes, log_color=self.color(self.log_colors, record.levelname)
+            )
             if self.secondary_log_colors:
                 for name, log_colors in self.secondary_log_colors.items():
                     colors[name + "_log_color"] = self.color(
@@ -161,25 +163,6 @@ class ColoredArgumentsFormatter(ColoredFormatter):
         if msg_color_fmt:
             record.msg = orig_record_msg
         return result
-
-
-# See: https://stackoverflow.com/a/38739634/211404
-class TqdmAwareStreamHandler(StreamHandler):
-    """Stream handler that prints log messages using tqdm.write().
-
-    Necessary, so that log messages do not disrupt an active tqdm progress bar.
-    """
-
-    @overrides
-    def emit(self, record: LogRecord) -> None:
-        try:
-            msg = self.format(record)
-            tqdm.write(msg, file=cast(TextIO, self.stream))
-            self.flush()
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except Exception:
-            self.handleError(record)
 
 
 class DynamicFileHandler(FileHandler):
@@ -265,3 +248,22 @@ class TqdmAwareFileHandler(DynamicFileHandler):
         # No way to type the following yet, see:
         # https://github.com/python/mypy/issues/2427
         tqdm.refresh = patched_refresh  # type: ignore
+
+
+# See: https://stackoverflow.com/a/38739634/211404
+class TqdmAwareStreamHandler(StreamHandler):
+    """Stream handler that prints log messages using tqdm.write().
+
+    Necessary, so that log messages do not disrupt an active tqdm progress bar.
+    """
+
+    @overrides
+    def emit(self, record: LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            tqdm.write(msg, file=cast(TextIO, self.stream))
+            self.flush()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            self.handleError(record)

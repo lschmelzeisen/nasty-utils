@@ -14,78 +14,73 @@
 # limitations under the License.
 #
 
-from logging import getLogger
-from multiprocessing import Process
-from time import sleep
+from logging import INFO, getLogger
+from pathlib import Path
+from sys import argv
 from typing import Iterator, cast
 
-from overrides import overrides
+from _pytest.logging import LogCaptureFixture
+from colorlog import escape_codes
 from tqdm import tqdm
 
-import nasty_utils
 from nasty_utils import (
-    Argument,
+    ColoredArgumentsFormatter,
     ColoredBraceStyleAdapter,
-    Command,
-    CommandMeta,
-    LoggingConfig,
-    Program,
-    ProgramMeta,
+    DynamicFileHandler,
+    TqdmAwareFileHandler,
 )
 
-_LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
+
+def test_colored_brace_style_adapter(caplog: LogCaptureFixture) -> None:
+    regular_logger = getLogger(__name__)
+    adapted_logger = ColoredBraceStyleAdapter(regular_logger)
+    adapted_logger.setLevel(INFO)
+
+    regular_logger.info("foo %s bar", 45)
+    adapted_logger.info("foo {} bar", 45)
+    adapted_logger.debug("test")
+    adapted_logger.info("test", extra={"foo": "bar"})
+
+    assert len(caplog.records) == 3
+    assert caplog.records[0].message == "foo 45 bar"
+    assert caplog.records[1].message == "foo 45 bar"
+    assert caplog.records[1].msg_color_fmt == (  # type: ignore
+        "foo {color_before}45{color_after} bar"
+    )
+    assert caplog.records[2].foo == "bar"  # type: ignore
 
 
-class MyCommand(Command[LoggingConfig]):
-    arg: str = Argument(
-        name="arg", short_name="a", desc="Description of my arg.", default=""
+def test_colored_arguments_formatter(caplog: LogCaptureFixture) -> None:
+    logger = ColoredBraceStyleAdapter(getLogger(__name__))
+    logger.info("foo {} bar", 45)
+    logger.info("test")
+
+    formatter = ColoredArgumentsFormatter("{green}{message}", arg_color="white")
+    assert formatter.format(
+        caplog.records[0]
+    ) == "{green}foo {reset}{white}45{reset}{green} bar{reset}".format(**escape_codes)
+    assert formatter.format(caplog.records[1]) == "{green}test{reset}".format(
+        **escape_codes
     )
 
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="my", desc="Description of my command.")
 
-    def run(self) -> None:
-        _LOGGER.debug("before")
+def test_dynamic_file_handler(tmp_path: Path) -> None:
+    handler = DynamicFileHandler(tmp_path / "{argv0}.log")
+    assert Path(handler.baseFilename).name == Path(argv[0]).name + ".log"
 
-        for i in tqdm(cast(Iterator[int], range(3)), desc="Epoch"):
-            _LOGGER.debug("foo {} bar".format(i))
-            for _ in tqdm(
-                cast(Iterator[int], range(30)), desc="Batch {}".format(i), leave=False
-            ):
-                sleep(0.01)
-
-        _LOGGER.debug("after")
-        _LOGGER.info("arg: '{}' {{{}}}", self.arg, bool(self.arg))
-
-        _LOGGER.debug("debug")
-        _LOGGER.info("info")
-        _LOGGER.warning("warning")
-        _LOGGER.error("error")
-        _LOGGER.critical("critical")
+    dest1 = tmp_path / "dest1.log"
+    dest2 = tmp_path / "dest2.log"
+    link = tmp_path / "link.log"
+    assert not link.exists()
+    DynamicFileHandler(dest1, symlink=link)
+    assert link.resolve() == dest1
+    DynamicFileHandler(dest2, symlink=link)
+    assert link.resolve() == dest2
 
 
-class MyProgram(Program[LoggingConfig]):
-    @classmethod
-    @overrides
-    def meta(cls) -> ProgramMeta[LoggingConfig]:
-        return ProgramMeta(
-            name="myprog",
-            version=nasty_utils.__version__,
-            desc="Description of my program.",
-            config_type=LoggingConfig,
-            config_file="natty.toml",
-            config_dir=".",
-            command_hierarchy={Command: [MyCommand]},
-        )
-
-
-def test_logging() -> None:
-    p = Process(target=MyProgram, args=("my", "-a", "5"))
-    p.start()
-    p.join()
-
-
-if __name__ == "__main__":
-    test_logging()
+def test_tqdm_aware_file_handler(tmp_path: Path) -> None:
+    file = tmp_path / "tqdm.log"
+    TqdmAwareFileHandler(file, encoding="UTF-8")
+    assert not file.read_text(encoding="UTF-8")
+    next(iter(tqdm(cast(Iterator[None], [None]))))
+    assert "0/1" in file.read_text(encoding="UTF-8")
