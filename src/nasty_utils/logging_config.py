@@ -18,16 +18,14 @@ from logging import NOTSET, getLogger
 from logging.config import dictConfig
 from logging.handlers import MemoryHandler
 from sys import maxsize
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
-from typing_extensions import Final
-
-from nasty_utils.config import Config, ConfigAttr
+from nasty_utils.config import Config
 
 if TYPE_CHECKING:
     from _pytest.config import Config as PytestConfig
 
-DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
+DEFAULT_LOG_CONFIG: Mapping[str, object] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -75,7 +73,7 @@ DEFAULT_LOG_CONFIG: Final[Mapping[str, object]] = {
 
 
 class LoggingConfig(Config):
-    logging: Mapping[str, object] = ConfigAttr(default=DEFAULT_LOG_CONFIG)
+    logging: Mapping[str, Any] = DEFAULT_LOG_CONFIG
 
     @classmethod
     def setup_memory_logging(cls) -> None:
@@ -111,7 +109,7 @@ class LoggingConfig(Config):
     ) -> None:
         pytest_config.option.log_level = level
         pytest_config.option.log_format = format_
-        pytest_config.option.log_date_format = "%Y-%m-%d %H:%M:%S"
+        pytest_config.option.log_date_format = "%Y-%m-%dT%H:%M:%S"
 
         # When running pytest from PyCharm enable live cli logging so that we can click
         # a test case and see (only) its log output. When not using PyCharm, this

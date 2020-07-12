@@ -16,7 +16,7 @@
 
 import logging
 
-from nasty_utils.config import Config, ConfigAttr, ConfigSection
+from nasty_utils.config import Config
 from nasty_utils.datetime_ import (
     date_range,
     date_to_datetime,
@@ -57,8 +57,6 @@ from nasty_utils.typing_ import checked_cast
 
 __all__ = [
     "Config",
-    "ConfigAttr",
-    "ConfigSection",
     "date_range",
     "date_to_datetime",
     "date_to_timestamp",
