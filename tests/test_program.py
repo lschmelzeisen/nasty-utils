@@ -14,353 +14,207 @@
 # limitations under the License.
 #
 
-
-from contextlib import contextmanager
-from logging import Logger, getLogger
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional, cast
+from typing import Optional
 
-import pytest
-from _pytest.capture import CaptureFixture
-from overrides import overrides
-from typing_extensions import Final
+from pydantic import ValidationError
+from pytest import raises
 
-from nasty_utils import (
-    Argument,
-    ArgumentError,
-    ArgumentGroup,
-    Command,
-    CommandMeta,
-    Flag,
-    LoggingConfig,
-    Program,
-    ProgramMeta,
-)
-from tests._util.path import change_dir
+from nasty_utils import Argument, ArgumentGroup, Command, Configuration, Program
 
-_LOGGER: Final[Logger] = getLogger(__name__)
+_MY_GROUP = ArgumentGroup(name="My Group", description="my group desc")
 
 
-class FooCommand(Command[LoggingConfig]):
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="foo", aliases=["f"], desc="foo desc")
+class ArgProgram(Program):
+    class Config:
+        title = "myprog"
+        version = "0.0.0"
+        description = "My program description."
+
+    foo: str = "foo"
+    bar: int = Argument(5, short_alias="b", description="my arg desc", group=_MY_GROUP)
+    baz: int = Argument(alias="baz-alias", metavar="VALUE", group=_MY_GROUP)
+    qux: bool
 
 
-class BarCommand(Command[LoggingConfig]):
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="bar", aliases=["b"], desc="bar desc")
+def test_arg_program() -> None:
+    with raises(SystemExit):  # Prints version string (for manual inspection).
+        ArgProgram.init("-v")
+
+    with raises(SystemExit):  # Print help message (for manual inspection).
+        ArgProgram.init("-h")
+
+    with raises(SystemExit):  # Argument baz-alias required.
+        ArgProgram.init()
+
+    args = ("--baz-alias", "10")
+    prog = ArgProgram.init(*args)
+    assert tuple(prog.raw_args) == args
+    assert prog.foo == "foo"
+    assert prog.bar == 5
+    assert prog.baz == 10
+    assert not prog.qux
+
+    with raises(SystemExit):  # Argument baz-alias validation failed.
+        ArgProgram.init("--baz-alias", "ten")
+
+    args = ("--foo", "fool", "-b", "6", "--baz-alias", "15", "--qux")
+    prog = ArgProgram.init(*args)
+    assert tuple(prog.raw_args) == args
+    assert prog.foo == "fool"
+    assert prog.bar == 6
+    assert prog.baz == 15
+    assert prog.qux
 
 
-class BazCommand(Command[LoggingConfig]):
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="baz", aliases=["b"], desc="baz desc")
+class ArgCommand(Command):
+    foo: int
 
 
-class QuxCommand(Command[LoggingConfig]):
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="qux", aliases=["q"], desc="qux desc")
+class ArgCommandProgram(Program):
+    class Config:
+        commands = [ArgCommand]
 
 
-class MyProgram(Program[LoggingConfig]):
-    @classmethod
-    @overrides
-    def meta(cls) -> ProgramMeta[LoggingConfig]:
-        return ProgramMeta(
-            name="myprog",
-            version="0.1.0",
-            desc="myprog desc",
-            config_type=LoggingConfig,
-            config_file="myprog.toml",
-            config_dir=".",
-            command_hierarchy={
-                Command: [FooCommand, BarCommand],
-                BarCommand: [BazCommand, QuxCommand],
-            },
-        )
+def test_arg_command_program() -> None:
+    with raises(SystemExit):  # Argument foo required.
+        ArgCommandProgram.init("MyCommand")
+
+    prog = ArgCommandProgram.init(ArgCommand.__name__, "--foo", "3")
+    assert isinstance(prog.command, ArgCommand)
+    assert prog.command.foo == 3
+
+    with raises(SystemExit):  # Argument foo validation error.
+        ArgCommandProgram.init(ArgCommand.__name__, "--foo", "three")
 
 
-class QqqCommand(Command[None]):
-    _in_out_group = ArgumentGroup(
-        name="Input/Output", desc="Input and output arguments."
+class FooCommand(Command):
+    prog: "SubcommandProgram"
+
+    class Config:
+        title = "foo"
+        aliases = ("f",)
+
+
+class BarCommand(Command):
+    class Config:
+        title = "bar"
+        aliases = ("b",)
+
+
+class BazCommand(Command):
+    class Config:
+        title = "baz"
+        aliases = ("b",)
+
+
+class QuxCommand(Command):
+    class Config:
+        title = "qux"
+        aliases = ("q", "u")
+
+
+class SubcommandProgram(Program):
+    class Config:
+        commands = {
+            FooCommand: Command,
+            BarCommand: Command,
+            BazCommand: BarCommand,
+            QuxCommand: BarCommand,
+        }
+
+
+FooCommand.update_forward_refs()
+
+
+def test_subcommand_program() -> None:
+    with raises(SystemExit):  # Print help message (for manual inspection).
+        SubcommandProgram.init("-h")
+
+    with raises(SystemExit):  # Print help message (for manual inspection).
+        SubcommandProgram.init("foo", "-h")
+
+    with raises(SystemExit):  # Print help message (for manual inspection).
+        SubcommandProgram.init("bar", "-h")
+
+    with raises(SystemExit):  # Command required.
+        SubcommandProgram.init()
+
+    prog = SubcommandProgram.init("foo")
+    assert isinstance(prog.command, FooCommand)
+
+    with raises(SystemExit):  # Subcommand required.
+        SubcommandProgram.init("bar")
+
+    prog = SubcommandProgram.init("bar", "baz")
+    assert isinstance(prog.command, BazCommand)
+
+    prog = SubcommandProgram.init("bar", "qux")
+    assert isinstance(prog.command, QuxCommand)
+
+
+class ParenCommand(Command):
+    in_file: Path
+    out_file: Optional[Path] = None
+
+
+class ChildCommand(ParenCommand):
+    test_file: Path
+
+
+class SuclassCommandProgram(Program):
+    class Config:
+        commands = [ParenCommand, ChildCommand]
+
+
+def test_subclass_command_program() -> None:
+    prog = SuclassCommandProgram.init(ParenCommand.__name__, "--in_file", "in.file")
+    assert isinstance(prog.command, ParenCommand)
+    assert prog.command.in_file == Path("in.file")
+    assert prog.command.out_file is None
+
+    with raises(SystemExit):  # Argument in_file missing.
+        SuclassCommandProgram.init(ChildCommand.__name__, "--test_file", "test.file")
+
+    prog = SuclassCommandProgram.init(
+        ChildCommand.__name__, "--in_file", "in.file", "--test_file", "test.file"
     )
-    in_file: Path = Argument(
-        name="in-file",
-        short_name="i",
-        metavar="FILE",
-        desc="Input file.",
-        required=True,
-        deserializer=Path,
-    )
-    out_file: Optional[Path] = Argument(
-        name="out-file", metavar="File", desc="Output file", deserializer=Path
-    )
-
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="qqq", desc="qqq desc")
+    assert isinstance(prog.command, ChildCommand)
+    assert prog.command.in_file == Path("in.file")
+    assert prog.command.out_file is None
+    assert prog.command.test_file == Path("test.file")
 
 
-class InheritingCommand(QqqCommand):
-    test_file: Path = Argument(
-        required=True,
-        name="test-file",
-        metavar="File",
-        desc="Test file",
-        deserializer=Path,
-    )
-
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="inheriting", desc="inheriting desc")
+class MyConfiguration(Configuration):
+    n: float
 
 
-class NoConfigProgram(Program[None]):
-    @classmethod
-    @overrides
-    def meta(cls) -> ProgramMeta[None]:
-        return ProgramMeta(
-            name="noconf",
-            version="0.1.0",
-            desc="noconf desc",
-            config_type=type(None),
-            config_file="",
-            config_dir="",
-            command_hierarchy={Command: [QqqCommand, InheritingCommand]},
-        )
+class MyConfigurationProgram(Program):
+    config: MyConfiguration
 
 
-class NoCommandProgram(Program[None]):
-    verbose: bool = Flag(name="verbose", desc="Verbose desc.")
+def test_my_configuration_program(tmp_cwd: Path) -> None:
+    with raises(FileNotFoundError):  # Config file does not exist.
+        MyConfigurationProgram.init()
 
-    @classmethod
-    @overrides
-    def meta(cls) -> ProgramMeta[None]:
-        return ProgramMeta(
-            name="nocomm",
-            version="0.1.0",
-            desc="nocomm desc",
-            config_type=type(None),
-            config_file="",
-            config_dir="",
-            command_hierarchy=None,
-        )
+    config_dir = Path(".config")
+    config_dir.mkdir()
 
+    config_file = config_dir / (MyConfigurationProgram.__name__ + ".toml")
+    config_file.touch()
 
-class ErrorProgram(Program[None]):
-    digit: int = Argument(
-        name="digit",
-        desc="digit desc",
-        metavar="DIGIT",
-        required=True,
-        deserializer=int,
-    )
+    with raises(ValidationError):  # Config contents are required.
+        MyConfigurationProgram.init()
 
-    @classmethod
-    @overrides
-    def meta(cls) -> ProgramMeta[None]:
-        return ProgramMeta(
-            name="errorprog",
-            version="0.1.0",
-            desc="errorprog desc",
-            config_type=type(None),
-            config_file="",
-            config_dir="",
-            command_hierarchy=None,
-        )
+    config_file.write_text("n = 3.14", encoding="UTF-8")
 
-    def run(self) -> None:
-        if not 0 < self.digit < 10:
-            raise ArgumentError(f"Expected a digit (0-9), received: {self.digit}")
+    prog = MyConfigurationProgram.init()
+    assert isinstance(prog.config, MyConfiguration)
+    assert prog.config.n == 3.14
 
+    config_file = Path("alt-config.toml")
+    config_file.write_text("n = 10.0", encoding="UTF-8")
 
-class ErrorCommand(Command[None]):
-    digit: int = Argument(
-        name="digit",
-        desc="digit desc",
-        metavar="DIGIT",
-        required=True,
-        deserializer=int,
-    )
-
-    @classmethod
-    @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="errorcomm", desc="errorcomm desc")
-
-    def run(self) -> None:
-        if not 0 < self.digit < 10:
-            raise ArgumentError(f"Expected a digit (0-9), received: {self.digit}")
-
-
-class ErrorCommandProgram(Program[None]):
-    @classmethod
-    @overrides
-    def meta(cls) -> ProgramMeta[None]:
-        return ProgramMeta(
-            name="errorprog",
-            version="0.1.0",
-            desc="errorprog desc",
-            config_type=type(None),
-            config_file="",
-            config_dir="",
-            command_hierarchy={Command: [ErrorCommand]},
-        )
-
-
-@contextmanager
-def _write_logging_config(config_file: Path, value: bool) -> Iterator[None]:
-    Path.mkdir(config_file.parent, exist_ok=True, parents=True)
-    with config_file.open("w", encoding="UTF-8") as fout:
-        fout.write(
-            f"""
-            [logging]
-            version = 1
-            disable_existing_loggers = {"true" if value else "false"}
-            """
-        )
-
-    try:
-        yield None
-    finally:
-        Path.unlink(config_file)
-
-
-def test_program_config(tmp_path: Path) -> None:
-    prog: Program[Any]
-    with change_dir(tmp_path / "a") as path:
-        with _write_logging_config(path / ".config" / "myprog.toml", True):
-            prog = MyProgram("f")
-            assert prog.config.logging["disable_existing_loggers"]
-
-    with change_dir(tmp_path / "b") as path:
-        with _write_logging_config(path / "myprog.toml", False):
-            prog = MyProgram("f", "--config", "myprog.toml")
-            assert not prog.config.logging["disable_existing_loggers"]
-
-    with change_dir(tmp_path / "c"):
-        with pytest.raises(FileNotFoundError):
-            MyProgram("f")
-
-    prog = NoConfigProgram("qqq", "-i", "file.txt")
-    assert prog.config is None
-
-
-def test_no_command_program() -> None:
-    NoCommandProgram()
-
-
-def test_program_help(capsys: CaptureFixture) -> None:
-    # This test doesn't really assert anything. Its goal is to produce nice logging
-    # output to manually look at.
-
-    def _log_capsys() -> None:
-        for line in capsys.readouterr().out.splitlines():
-            _LOGGER.info(line)
-
-    def _log_separator() -> None:
-        _LOGGER.info(80 * "-")
-
-    with pytest.raises(SystemExit) as e:
-        NoConfigProgram("-h")
-    assert e.value.code == 0
-
-    _log_capsys()
-    _log_separator()
-
-    with pytest.raises(SystemExit) as e:
-        NoConfigProgram("inheriting", "-h")
-    assert e.value.code == 0
-
-    _log_capsys()
-    _log_separator()
-
-    with pytest.raises(SystemExit) as e:
-        NoCommandProgram("-h")
-    assert e.value.code == 0
-
-    _log_capsys()
-
-
-def test_program_arguments() -> None:
-    prog: Program[Any]
-
-    prog = NoConfigProgram("qqq", "-i", "file.txt")
-    assert cast(QqqCommand, prog.command).in_file == Path("file.txt")
-    assert cast(QqqCommand, prog.command).out_file is None
-
-    prog = NoConfigProgram("qqq", "-i", "file.txt", "--out-file", "file.csv")
-    assert cast(QqqCommand, prog.command).in_file == Path("file.txt")
-    assert cast(QqqCommand, prog.command).out_file == Path("file.csv")
-
-    with pytest.raises(SystemExit) as e:
-        # Note that this will log an error to stderr. This is to be expected.
-        NoConfigProgram("inheriting", "-i", "file.txt", "--out-file", "file.csv")
-    assert e.value.code == 2  # argparse exit code in case of command failure.
-
-    prog = NoConfigProgram(
-        "inheriting",
-        "-i",
-        "file.txt",
-        "--out-file",
-        "file.csv",
-        "--test-file",
-        "file.test",
-    )
-    assert cast(InheritingCommand, prog.command).in_file == Path("file.txt")
-    assert cast(InheritingCommand, prog.command).out_file == Path("file.csv")
-    assert cast(InheritingCommand, prog.command).test_file == Path("file.test")
-
-    prog = NoCommandProgram()
-    assert prog.verbose is False
-
-    prog = NoCommandProgram("--verbose")
-    assert prog.verbose is True
-
-
-def test_argument_error(capsys: CaptureFixture) -> None:
-    def _assert_outerr(callback: Callable[[], Program[Any]], msg_part: str) -> None:
-        with pytest.raises(SystemExit) as e:
-            callback()
-        assert e.value.code == 2  # argparse exit code in case of command failure.
-
-        outerr = capsys.readouterr()
-        assert not outerr.out
-
-        assert msg_part in outerr.err
-
-        for line in outerr.err.splitlines():
-            _LOGGER.info(line)
-
-    prog: Program[Any]
-
-    _assert_outerr(lambda: ErrorProgram(), f"{ErrorProgram.meta().name}: error")
-
-    prog = ErrorProgram("--digit", "1")
-    assert prog.digit == 1
-
-    _assert_outerr(
-        lambda: ErrorProgram("--digit", "10"), f"{ErrorProgram.meta().name}: error"
-    )
-
-    _assert_outerr(
-        lambda: ErrorCommandProgram("errorcomm"),
-        f"{ErrorCommandProgram.meta().name} {ErrorCommand.meta().name}: error",
-    )
-
-    prog = ErrorCommandProgram("errorcomm", "--digit", "1")
-    assert cast(ErrorCommand, prog.command).digit == 1
-
-    _assert_outerr(
-        lambda: ErrorCommandProgram("errorcomm", "--digit", "10"),
-        f"{ErrorCommandProgram.meta().name} {ErrorCommand.meta().name}: error",
-    )
+    prog = MyConfigurationProgram.init("--config", str(config_file))
+    assert isinstance(prog.config, MyConfiguration)
+    assert prog.config.n == 10.0

@@ -18,14 +18,13 @@ from logging import NOTSET, getLogger
 from logging.config import dictConfig
 from logging.handlers import MemoryHandler
 from sys import maxsize
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import Mapping
 
-from nasty_utils.config import Config
+from _pytest.config import Config as PytestConfig
 
-if TYPE_CHECKING:
-    from _pytest.config import Config as PytestConfig
+from nasty_utils.configuration import Configuration
 
-DEFAULT_LOG_CONFIG: Mapping[str, object] = {
+DEFAULT_LOGGING_CONFIGURATION: Mapping[str, object] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -72,8 +71,8 @@ DEFAULT_LOG_CONFIG: Mapping[str, object] = {
 }
 
 
-class LoggingConfig(Config):
-    logging: Mapping[str, Any] = DEFAULT_LOG_CONFIG
+class LoggingConfiguration(Configuration):
+    logging: dict = dict(DEFAULT_LOGGING_CONFIGURATION)  # type: ignore
 
     @classmethod
     def setup_memory_logging(cls) -> None:
@@ -95,12 +94,13 @@ class LoggingConfig(Config):
 
         for record in buffer:
             for handler in root.handlers:
-                handler.handle(record)
+                if record.levelno >= handler.level:
+                    handler.handle(record)
 
     @classmethod
     def setup_pytest_logging(
         cls,
-        pytest_config: "PytestConfig",
+        pytest_config: PytestConfig,
         *,
         level: str = "DEBUG",
         format_: str = (

@@ -15,10 +15,25 @@
 #
 
 
-from _pytest.config import Config
+from os import chdir
+from pathlib import Path
+from typing import Iterator
 
-from nasty_utils import LoggingConfig
+from _pytest.config import Config
+from pytest import fixture
+
+from nasty_utils import LoggingConfiguration
 
 
 def pytest_configure(config: Config) -> None:
-    LoggingConfig.setup_pytest_logging(config)
+    LoggingConfiguration.setup_pytest_logging(config)
+
+
+@fixture
+def tmp_cwd(tmp_path: Path) -> Iterator[Path]:
+    cwd = Path.cwd()
+    try:
+        chdir(tmp_path)
+        yield tmp_path
+    finally:
+        chdir(cwd)

@@ -16,9 +16,11 @@
 
 import re
 from enum import Enum
-from typing import Sequence, Type, TypeVar
+from typing import Any, Sequence, Type, TypeVar
 
-from nasty_utils.program import ArgumentError
+
+def get_qualified_name(cls: Type[Any]) -> str:
+    return cls.__module__ + "." + cls.__name__
 
 
 # Adapted from: https://stackoverflow.com/a/37697078/211404
@@ -31,23 +33,23 @@ def camel_case_split(s: str, remove_underscores: bool = True) -> Sequence[str]:
 _T_Enum = TypeVar("_T_Enum", bound=Enum)
 
 
-def parse_enum_arg(
-    s: str,
-    enum_cls: Type[_T_Enum],
-    *,
-    ignore_case: bool = False,
-    convert_camel_case_for_error: bool = False,
-) -> _T_Enum:
-    for variant in enum_cls:
-        if (ignore_case and variant.name.upper() == s.upper()) or (variant.name == s):
-            return variant
-
-    enum_name = enum_cls.__name__
-    if convert_camel_case_for_error:
-        enum_name = " ".join(s.lower() for s in camel_case_split(enum_name))
-
-    valid_values = "', '".join(t.name for t in enum_cls)
-
-    raise ArgumentError(
-        f"Can not parse {enum_name} '{s}'. Valid values are: '{valid_values}'."
-    )
+# def parse_enum_arg(
+#     s: str,
+#     enum_cls: Type[_T_Enum],
+#     *,
+#     ignore_case: bool = False,
+#     convert_camel_case_for_error: bool = False,
+# ) -> _T_Enum:
+#     for variant in enum_cls:
+#         if (ignore_case and variant.name.upper() == s.upper()) or (variant.name == s):
+#             return variant
+#
+#     enum_name = enum_cls.__name__
+#     if convert_camel_case_for_error:
+#         enum_name = " ".join(s.lower() for s in camel_case_split(enum_name))
+#
+#     valid_values = "', '".join(t.name for t in enum_cls)
+#
+#     raise ArgumentError(
+#         f"Can not parse {enum_name} '{s}'. Valid values are: '{valid_values}'."
+#     )

@@ -17,8 +17,6 @@
 from datetime import date, datetime, timedelta, tzinfo
 from typing import Iterable, Optional
 
-from nasty_utils.program import ArgumentError
-
 
 def parse_yyyy_mm_dd(s: str) -> date:
     try:
@@ -27,13 +25,13 @@ def parse_yyyy_mm_dd(s: str) -> date:
         return datetime.strptime(s, "%Y%m%d").date()
 
 
-def parse_yyyy_mm_dd_arg(s: str) -> date:
-    try:
-        return parse_yyyy_mm_dd(s)
-    except ValueError:
-        raise ArgumentError(
-            f"Can not parse date: '{s}'. Make sure it is in YYYY-MM-DD format."
-        )
+# def parse_yyyy_mm_dd_arg(s: str) -> date:
+#     try:
+#         return parse_yyyy_mm_dd(s)
+#     except ValueError:
+#         raise ArgumentError(
+#             f"Can not parse date: '{s}'. Make sure it is in YYYY-MM-DD format."
+#         )
 
 
 def format_yyyy_mm_dd(d: date) -> str:
@@ -47,13 +45,13 @@ def parse_yyyy_mm(s: str) -> date:
         return datetime.strptime(s, "%Y%m").date()
 
 
-def parse_yyyy_mm_arg(s: str) -> date:
-    try:
-        return parse_yyyy_mm(s)
-    except ValueError:
-        raise ArgumentError(
-            f"Can not parse date: '{s}'. Make sure it is in YYYY-MM format."
-        )
+# def parse_yyyy_mm_arg(s: str) -> date:
+#     try:
+#         return parse_yyyy_mm(s)
+#     except ValueError:
+#         raise ArgumentError(
+#             f"Can not parse date: '{s}'. Make sure it is in YYYY-MM format."
+#         )
 
 
 def format_yyyy_mm(d: date) -> str:

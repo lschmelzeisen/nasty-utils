@@ -16,17 +16,15 @@
 
 import logging
 
-from nasty_utils.config import Config
-from nasty_utils.datetime_ import (
+from nasty_utils.configuration import Configuration
+from nasty_utils.datetime_ import (  # parse_yyyy_mm_arg, parse_yyyy_mm_dd_arg,
     date_range,
     date_to_datetime,
     date_to_timestamp,
     format_yyyy_mm,
     format_yyyy_mm_dd,
     parse_yyyy_mm,
-    parse_yyyy_mm_arg,
     parse_yyyy_mm_dd,
-    parse_yyyy_mm_dd_arg,
 )
 from nasty_utils.download import (
     FileNotOnServerError,
@@ -41,31 +39,33 @@ from nasty_utils.logging_ import (
     TqdmAwareFileHandler,
     TqdmAwareStreamHandler,
 )
-from nasty_utils.logging_config import DEFAULT_LOG_CONFIG, LoggingConfig
-from nasty_utils.misc import camel_case_split, parse_enum_arg
+from nasty_utils.logging_configuration import (
+    DEFAULT_LOGGING_CONFIGURATION,
+    LoggingConfiguration,
+)
+from nasty_utils.misc import camel_case_split, get_qualified_name  # , parse_enum_arg
 from nasty_utils.program import (
     Argument,
-    ArgumentError,
     ArgumentGroup,
+    ArgumentInfo,
     Command,
-    CommandMeta,
-    Flag,
+    CommandConfig,
     Program,
-    ProgramMeta,
+    ProgramConfig,
 )
 from nasty_utils.typing_ import checked_cast
 
 __all__ = [
-    "Config",
+    "Configuration",
     "date_range",
     "date_to_datetime",
     "date_to_timestamp",
     "format_yyyy_mm",
     "format_yyyy_mm_dd",
     "parse_yyyy_mm",
-    "parse_yyyy_mm_arg",
+    # "parse_yyyy_mm_arg",
     "parse_yyyy_mm_dd",
-    "parse_yyyy_mm_dd_arg",
+    # "parse_yyyy_mm_dd_arg",
     "FileNotOnServerError",
     "download_file_with_progressbar",
     "sha256sum",
@@ -75,18 +75,18 @@ __all__ = [
     "DynamicFileHandler",
     "TqdmAwareFileHandler",
     "TqdmAwareStreamHandler",
-    "DEFAULT_LOG_CONFIG",
-    "LoggingConfig",
+    "DEFAULT_LOGGING_CONFIGURATION",
+    "LoggingConfiguration",
     "camel_case_split",
-    "parse_enum_arg",
+    "get_qualified_name",
+    # "parse_enum_arg",
     "Argument",
-    "ArgumentError",
     "ArgumentGroup",
-    "Flag",
+    "ArgumentInfo",
     "Command",
-    "CommandMeta",
+    "CommandConfig",
     "Program",
-    "ProgramMeta",
+    "ProgramConfig",
     "checked_cast",
 ]
 

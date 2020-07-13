@@ -38,8 +38,7 @@ def test_decompressing_text_io_wrapper(tmp_path: Path) -> None:
     content_len = len(content.encode(encoding="UTF-8"))
 
     file = tmp_path / "file.txt"
-    with file.open("w", encoding="UTF-8") as fout:
-        fout.write(content)
+    file.write_text(content, encoding="UTF-8")
 
     for progress_bar in [True, False]:
         with DecompressingTextIOWrapper(
@@ -71,8 +70,9 @@ def test_decompressing_text_io_wrapper(tmp_path: Path) -> None:
             assert fin.tell() > 0
 
     compressed_file = tmp_path / "file.zst"
-    with compressed_file.open("wb") as bfout:
-        bfout.write(ZstdCompressor().compress(content.encode(encoding="UTF-8")))
+    compressed_file.write_bytes(
+        ZstdCompressor().compress(content.encode(encoding="UTF-8"))
+    )
     with DecompressingTextIOWrapper(compressed_file, encoding="UTF-8") as fin:
         assert fin.tell() == 0
         assert fin.read() == content

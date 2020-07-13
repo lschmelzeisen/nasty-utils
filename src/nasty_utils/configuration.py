@@ -21,7 +21,7 @@ from typing import AbstractSet, Mapping, Optional, Sequence, Type, TypeVar
 
 import toml
 from overrides import overrides
-from pydantic import BaseModel, FilePath, validator
+from pydantic import BaseModel, Extra, FilePath, validator
 from pydantic.fields import ModelField
 from xdg import XDG_CONFIG_DIRS, XDG_CONFIG_HOME
 
@@ -29,16 +29,18 @@ from nasty_utils.logging_ import ColoredBraceStyleAdapter
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
-_T_Config = TypeVar("_T_Config", bound="Config")
+_T_Configuration = TypeVar("_T_Configuration", bound="Configuration")
 
 
-class Config(BaseModel):
-    class Config:  # Pydantic configuration, not related to this class's config nature.
+class Configuration(BaseModel):
+    class Config:  # Pydantic config, not related to this class's configuration nature.
         validate_all = True
+        extra = Extra.forbid
         allow_mutation = False
 
     config_file: Optional[FilePath]
 
+    # TODO: does probably not work with Path's in nested BaseModels.
     @validator("*", pre=True)
     def _expand_paths(
         cls,  # noqa: N805
@@ -46,19 +48,24 @@ class Config(BaseModel):
         values: Mapping[str, object],
         field: ModelField,
     ) -> object:
-        if not (issubclass(field.type_, Path) and value):
+        if not (
+            # In >=3.7 typing.Sequence/Mapping is not a normal type.
+            type(field.type_) == type(object)
+            and issubclass(field.type_, Path)
+            and value
+        ):
             return value
 
         if isinstance(value, str) or isinstance(value, Path):
             v = str(value)
-            if "${CONFIG_FILE}" in v:
+            if "{CONFIG_FILE}" in v:
                 config_file = values.get("config_file")
                 if not config_file:
                     raise ValueError(
-                        "Can not use '${CONFIG_FILE}' placeholder in configuration not "
+                        "Can not use '{CONFIG_FILE}' placeholder in configuration not "
                         "loaded from a file."
                     )
-                v = v.replace("${CONFIG_FILE}", str(Path(str(config_file)).parent))
+                v = v.replace("{CONFIG_FILE}", str(Path(str(config_file)).parent))
             return v
         elif isinstance(value, Mapping):
             return {k: cls._expand_paths(v, values, field) for k, v in value.items()}
@@ -72,7 +79,14 @@ class Config(BaseModel):
             )
 
     @classmethod
-    def find_config_file(cls, name: str, directory: str = ".") -> Path:
+    def can_default(cls) -> bool:
+        for field in cls.__fields__.values():
+            if field.required:
+                return False
+        return True
+
+    @classmethod
+    def find_config_file(cls, search_path: Path) -> Path:
         config_dirs = [Path.cwd() / ".config"]
         while config_dirs[-1].parent.parent != config_dirs[-1].parent:
             config_dirs.append(config_dirs[-1].parent.parent / ".config")
@@ -81,33 +95,48 @@ class Config(BaseModel):
         config_dirs.extend(XDG_CONFIG_DIRS)
 
         for config_dir in config_dirs:
-            path = config_dir / directory / name
+            path = config_dir / search_path
             if path.exists():
                 return path
 
         raise FileNotFoundError(
-            f"Could not find config file '{directory}/{name}'. Checked at the "
+            f"Could not find configuration file '{search_path}'. Checked at the "
             "following locations:\n"
             + "\n".join("- " + str(config_dir) for config_dir in config_dirs)
         )
 
     @classmethod
     def find_and_load_from_config_file(
-        cls: Type[_T_Config], name: str, directory: str = "."
-    ) -> _T_Config:
-        config_file = cls.find_config_file(name, directory)
+        cls: Type[_T_Configuration], search_path: Path
+    ) -> _T_Configuration:
+        try:
+            config_file = cls.find_config_file(search_path)
+        except FileNotFoundError:
+            if cls.can_default():
+                _LOGGER.debug(
+                    "Loading default {} since no config file was found...", cls.__name__
+                )
+                return cls()
+            else:
+                raise
         return cls.load_from_config_file(config_file)
 
     @classmethod
-    def load_from_config_file(cls: Type[_T_Config], config_file: Path) -> _T_Config:
+    def load_from_config_file(
+        cls: Type[_T_Configuration], config_file: Path
+    ) -> _T_Configuration:
         _LOGGER.debug("Loading {} from '{}'...", cls.__name__, config_file)
-        with config_file.open(encoding="UTF-8") as fin:
-            return cls.load_from_str(fin.read(), config_file=config_file)
+        return cls.load_from_str(
+            config_file.read_text(encoding="UTF-8"), config_file=config_file
+        )
 
     @classmethod
     def load_from_str(
-        cls: Type[_T_Config], toml_str: str, *, config_file: Optional[Path] = None
-    ) -> _T_Config:
+        cls: Type[_T_Configuration],
+        toml_str: str,
+        *,
+        config_file: Optional[Path] = None,
+    ) -> _T_Configuration:
         config_dict = toml.loads(toml_str)
         config_dict["config_file"] = config_file
         return cls.parse_obj(config_dict)

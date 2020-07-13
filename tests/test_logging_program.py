@@ -16,6 +16,7 @@
 
 from logging import getLogger
 from multiprocessing import Process
+from pathlib import Path
 from time import sleep
 from typing import Iterator, cast
 
@@ -27,25 +28,21 @@ from nasty_utils import (
     Argument,
     ColoredBraceStyleAdapter,
     Command,
-    CommandMeta,
-    LoggingConfig,
+    LoggingConfiguration,
     Program,
-    ProgramMeta,
 )
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
-class MyCommand(Command[LoggingConfig]):
-    arg: str = Argument(
-        name="arg", short_name="a", desc="Description of my arg.", default=""
-    )
+class MyCommand(Command):
+    class Config:
+        title = "my"
+        description = "Description of my command."
 
-    @classmethod
+    arg: int = Argument(0, short_alias="a", description="Description of my arg.")
+
     @overrides
-    def meta(cls) -> CommandMeta:
-        return CommandMeta(name="my", desc="Description of my command.")
-
     def run(self) -> None:
         _LOGGER.debug("before")
 
@@ -66,23 +63,19 @@ class MyCommand(Command[LoggingConfig]):
         _LOGGER.critical("critical")
 
 
-class MyProgram(Program[LoggingConfig]):
-    @classmethod
-    @overrides
-    def meta(cls) -> ProgramMeta[LoggingConfig]:
-        return ProgramMeta(
-            name="myprog",
-            version=nasty_utils.__version__,
-            desc="Description of my program.",
-            config_type=LoggingConfig,
-            config_file="natty.toml",
-            config_dir=".",
-            command_hierarchy={Command: [MyCommand]},
-        )
+class MyProgram(Program):
+    class Config:
+        title = "myprog"
+        version = nasty_utils.__version__
+        description = "Description of my program."
+        config_search_path = Path("nasty.toml")
+        commands = [MyCommand]
+
+    config: LoggingConfiguration
 
 
 def test_logging() -> None:
-    p = Process(target=MyProgram, args=("my", "-a", "5"))
+    p = Process(target=lambda: MyProgram.init("my", "-a", "5").run())
     p.start()
     p.join()
 

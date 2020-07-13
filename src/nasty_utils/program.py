@@ -22,203 +22,226 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Generic,
     Mapping,
     MutableMapping,
+    MutableSequence,
     Optional,
     Sequence,
+    Tuple,
     Type,
     TypeVar,
     Union,
     cast,
 )
 
-import toml
-import typing_inspect
+from pydantic import BaseConfig, BaseModel, Extra, ValidationError
+from pydantic.dataclasses import dataclass
+from pydantic.fields import FieldInfo, ModelField, Undefined
 
 from nasty_utils._util.argparse_ import SingleMetavarHelpFormatter
-from nasty_utils.config import Config
+from nasty_utils.configuration import Configuration
 from nasty_utils.logging_ import ColoredBraceStyleAdapter
-from nasty_utils.logging_config import LoggingConfig
-from nasty_utils.typing_ import checked_cast
+from nasty_utils.logging_configuration import LoggingConfiguration
+from nasty_utils.misc import get_qualified_name
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
-_T_Config = TypeVar("_T_Config", bound=Optional[Config])
 
-
+@dataclass(eq=True, frozen=True)
 class ArgumentGroup:
-    def __init__(self, *, name: str, desc: Optional[str] = None):
-        self.name = name
-        self.desc = desc
+    name: str
+    description: Optional[str] = None
 
 
-class _Flag:
+class ArgumentInfo(FieldInfo):
+    __slots__ = FieldInfo.__slots__ + ("short_alias", "metavar", "group")
+
     def __init__(
         self,
-        *,
-        name: str,
-        short_name: Optional[str] = None,
-        desc: str,
-        default: bool = False,
+        default: Any,
+        short_alias: Optional[str],
+        metavar: Optional[str],
+        group: Optional[ArgumentGroup],
+        **kwargs: Any,
     ):
-        self.name = name
-        self.short_name = short_name
-        self.desc = desc
-        self.default = default
-
-    def __str__(self) -> str:
-        result = "--" + self.name
-        if self.short_name:
-            result = "-" + self.short_name + "/" + result
-        return result
-
-
-class _Argument:
-    def __init__(
-        self,
-        *,
-        name: str,
-        short_name: Optional[str] = None,
-        desc: str,
-        metavar: Optional[str] = None,
-        required: bool = False,
-        default: Optional[object] = None,
-        deserializer: Optional[Callable[[str], object]] = None,
-    ):
-        self.name = name
-        self.short_name = short_name
-        self.desc = desc
+        super().__init__(default, **kwargs)
+        self.short_alias = short_alias
         self.metavar = metavar
-        self.required = required
-        self.default = default
-        self.deserializer = deserializer
-
-        if self.required and self.default:
-            raise ValueError("Can not use required together with default.")
-
-    def __str__(self) -> str:
-        result = "--" + self.name
-        if self.short_name:
-            result = "-" + self.short_name + "/" + result
-        return result
+        self.group = group
 
 
-class ArgumentError(Exception):
-    def __init__(self, message: str):
-        self.message = message
+def Argument(  # noqa: N802
+    default: Any = Undefined,
+    *,
+    default_factory: Optional[Callable[[], Any]] = None,
+    alias: Optional[str] = None,
+    short_alias: Optional[str] = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    metavar: Optional[str] = None,
+    group: Optional[ArgumentGroup] = None,
+    const: Optional[bool] = None,
+    gt: Optional[float] = None,
+    ge: Optional[float] = None,
+    lt: Optional[float] = None,
+    le: Optional[float] = None,
+    multiple_of: Optional[float] = None,
+    min_items: Optional[int] = None,
+    max_items: Optional[int] = None,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+    regex: Optional[str] = None,
+    **extra: Any,
+) -> Any:
+    return ArgumentInfo(
+        default,
+        default_factory=default_factory,
+        alias=alias,
+        short_alias=short_alias,
+        title=title,
+        description=description,
+        metavar=metavar,
+        group=group,
+        const=const,
+        gt=gt,
+        ge=ge,
+        lt=lt,
+        le=le,
+        multiple_of=multiple_of,
+        min_items=min_items,
+        max_items=max_items,
+        min_length=min_length,
+        max_length=max_length,
+        regex=regex,
+        **extra,
+    )
 
 
-if TYPE_CHECKING:
-    Flag = Any
-    Argument = Any
-else:
-    Flag = _Flag
-    Argument = _Argument
+class CommandConfig(BaseConfig):
+    title: Optional[str] = None  # type: ignore
+    aliases: Sequence[str] = ()
+    description: Optional[str] = None
 
 
-class CommandMeta:
-    def __init__(
-        self, *, name: str, aliases: Optional[Sequence[str]] = None, desc: str
-    ):
-        self.name = name
-        self.aliases = aliases
-        self.desc = desc
+class Command(BaseModel):
+    if TYPE_CHECKING:
+        __config__: Type[CommandConfig] = CommandConfig
 
+    prog: "Program"
 
-class Command(Generic[_T_Config]):
+    class Config(CommandConfig):
+        validate_all = True
+        extra = Extra.forbid
+
     @classmethod
-    def meta(cls) -> CommandMeta:
-        raise NotImplementedError()
-
-    def __init__(self, config: _T_Config):
-        self.config = config
+    def title(cls) -> str:
+        return cls.__config__.title or cls.__name__
 
     def run(self) -> None:
         pass
 
 
-class ProgramMeta(Generic[_T_Config]):
-    def __init__(
-        self,
-        *,
-        name: str,
-        version: str,
-        desc: str,
-        config_type: Type[_T_Config],
-        config_file: str,
-        config_dir: str,
-        command_hierarchy: Optional[
-            Mapping[Type[Command[_T_Config]], Sequence[Type[Command[_T_Config]]]]
-        ],
-    ):
-        self.name = name
-        self.version = version
-        self.desc = desc
-        self.config_type = config_type
-        self.config_file = config_file
-        self.config_dir = config_dir
-        self.command_hierarchy = command_hierarchy
+class ProgramConfig(BaseConfig):
+    title: Optional[str] = None  # type: ignore
+    version: Optional[str] = None
+    description: Optional[str] = None
+    config_search_path: Optional[Path] = None
+    commands: Union[Sequence[Type[Command]], Mapping[Type[Command], Type[Command]]] = []
 
 
-class Program(Generic[_T_Config]):
+_T_Program = TypeVar("_T_Program", bound="Program")
+
+
+class Program(BaseModel):
+    # TODO: Add option to make commands optional if they exist?
+
+    if TYPE_CHECKING:
+        __config__: Type[ProgramConfig] = ProgramConfig
+
+    raw_args: Sequence[str] = ()
+    command: Optional[Command] = None
+
+    class Config(ProgramConfig):
+        validate_all = True
+        extra = Extra.forbid
+
     @classmethod
-    def meta(cls) -> ProgramMeta[_T_Config]:
-        raise NotImplementedError()
+    def title(cls) -> str:
+        return cls.__config__.title or cls.__name__
 
-    def __init__(self, *args: str):
-        self._meta = self.meta()
-        if issubclass(self._meta.config_type, LoggingConfig):
-            self._meta.config_type.setup_memory_logging()
+    @classmethod
+    def version(cls) -> str:
+        return cls.__config__.version or "unversioned"
 
-        self._raw_args = args
-        self._parsed_args = self._load_args()
-        self.config = self._load_config()
-        self.command: Optional[Command[_T_Config]] = None
-        self._parse_args()
-        self._log_state()
+    @classmethod
+    def config_type(cls) -> Optional[Type[Configuration]]:
+        config_field = cls.__fields__.get("config")
+        if not config_field:
+            return None
+
+        config_type: Type[Any] = config_field.outer_type_
+        if issubclass(config_type, Configuration):
+            return config_type
+
+        raise TypeError(
+            "If field `config` exists it must be annotated with a type that "
+            "subclasses nasty_utils.Configuration."
+        )
+
+    @classmethod
+    def config_search_path(cls) -> Path:
+        return cls.__config__.config_search_path or Path(cls.title() + ".toml")
+
+    @classmethod
+    def commands(cls) -> Mapping[Type[Command], Sequence[Type[Command]]]:
+        commands = cls.__config__.commands
+        if isinstance(commands, Sequence):
+            return {Command: commands}
+        return {  # Yes, this has quadratic complexity, but kept for brevity.
+            parent: [child for child, parent2 in commands.items() if parent2 == parent]
+            for parent in set(commands.values())
+        }
+
+    @classmethod
+    def init(cls: Type[_T_Program], *args: str) -> _T_Program:
+        config_type = cls.config_type()
+        if config_type and issubclass(config_type, LoggingConfiguration):
+            config_type.setup_memory_logging()
+
+        prog_argparser, command_argparsers = cls._setup_argparsers()
+        parsed_args, command, config_overwrite_path = cls._parse_args(
+            prog_argparser, args
+        )
+        config = cls._load_config(config_type, config_overwrite_path)
+
+        prog_obj: MutableMapping[str, object] = {"raw_args": tuple(args)}
+        if config_type:
+            prog_obj["config"] = config
+        if not command:
+            prog_obj.update(parsed_args)
 
         try:
-            self.run()
-        except ArgumentError as e:
-            self._argparser.error(e.message)  # noqa: B306
+            prog = cls.parse_obj(prog_obj)
+        except ValidationError as e:
+            prog_argparser.error(str(e))
 
-        _LOGGER.debug("Done.")
-
-    def run(self) -> None:
-        if self.command:
+        if command:
             try:
-                self.command.run()
-            except ArgumentError as e:
-                self._subparser_by_command_type[type(self.command)].error(
-                    e.message  # noqa: B306
-                )
+                command_obj = dict(parsed_args, prog=prog)
+                prog.command = command.parse_obj(command_obj)
+            except ValidationError as e:
+                command_argparsers[command].error(str(e))
 
-    def _load_args(self) -> argparse.Namespace:
-        self._argparser = ArgumentParser(
-            prog=self._meta.name,
-            description=self._meta.desc,
-            add_help=False,
-            formatter_class=SingleMetavarHelpFormatter,
-        )
-        self._setup_argparser(self._argparser, type(self))
+        return prog
 
-        self._subparser_by_command_type: MutableMapping[
-            Type[Command[_T_Config]], ArgumentParser
-        ] = {}
-        self._setup_subparsers(self._argparser, Command, name=self._meta.name, depth=0)
-
-        return self._argparser.parse_args(self._raw_args)
-
-    def _setup_argparser(  # noqa: C901
-        self,
-        argparser: ArgumentParser,
-        argument_holder: Union[Type["Program[_T_Config]"], Type[Command[_T_Config]]],
+    @classmethod
+    def _setup_args(
+        cls, argparser: ArgumentParser, model: Union[Type["Program"], Type[Command]]
     ) -> None:
         g = argparser.add_argument_group("General Arguments")
 
-        # The following line & the add_help=False above is to be able to customize
-        # the help message. See: https://stackoverflow.com/a/35848313/211404
+        # The following and the add_help=False of ArgumentParser() are s to customize
+        # the help's help. See: https://stackoverflow.com/a/35848313/211404
         g.add_argument(
             "-h",
             "--help",
@@ -231,11 +254,11 @@ class Program(Generic[_T_Config]):
             "-v",
             "--version",
             action="version",
-            version="%(prog)s " + self._meta.version,
-            help="Show program's version number and exit.",
+            version=f"{cls.title()} {cls.version()}",
+            help="Show program's version string and exit.",
         )
 
-        if self._meta.config_type:
+        if "config" in cls.__fields__:
             g.add_argument(
                 "--config",
                 metavar="<CONFIG>",
@@ -243,62 +266,83 @@ class Program(Generic[_T_Config]):
                 help="Overwrite default config file path.",
             )
 
-        for class_ in reversed(argument_holder.mro()):
-            for name, meta in vars(class_).items():
-                if isinstance(meta, ArgumentGroup):
-                    g = argparser.add_argument_group(
-                        title=meta.name, description=meta.desc
-                    )
+        for argument_group, fields in cls._get_argument_groups(model).items():
+            if argument_group:
+                g = argparser.add_argument_group(
+                    title=argument_group.name, description=argument_group.description
+                )
 
-                if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
-                    continue
+            for field in fields:
+                args = ["--" + field.alias]
+                metavar = field.alias.upper()
+                if isinstance(field.field_info, ArgumentInfo):
+                    if field.field_info.short_alias:
+                        args.insert(0, "-" + field.field_info.short_alias)
+                    if field.field_info.metavar:
+                        metavar = field.field_info.metavar
 
-                type_ = cast(Optional[Type[Any]], class_.__annotations__.get(name))
-                if type_ is None:
-                    raise TypeError(
-                        "Type annotation is required to use Flag()/Argument()."
-                        f"It is missing for {name}."
-                    )
+                kwargs = {
+                    "help": field.field_info.description,
+                    "dest": field.field_info.alias,
+                }
+                if field.outer_type_ is bool:
+                    kwargs["action"] = "store_false" if field.default else "store_true"
+                else:
+                    kwargs["type"] = str
+                    kwargs["metavar"] = f"<{metavar}>"
+                    kwargs["required"] = field.required
+                    kwargs["default"] = ...
 
-                opts = ["--" + meta.name]
-                if meta.short_name:
-                    opts.insert(
-                        0, "-" + meta.short_name,
-                    )
+                g.add_argument(*args, **kwargs)
 
-                if isinstance(meta, _Flag):
-                    if type_ is not bool:
-                        raise TypeError(
-                            f"Type annotation for Flag() must be bool, but is {type_}."
-                        )
-                    g.add_argument(
-                        *opts,
-                        help=meta.desc,
-                        action="store_true" if not meta.default else "store_false",
-                        dest=name,
-                    )
+    @classmethod
+    def _get_argument_groups(
+        cls, model: Union[Type["Program"], Type[Command]]
+    ) -> Mapping[Optional[ArgumentGroup], Sequence[ModelField]]:
+        result: MutableMapping[Optional[ArgumentGroup], MutableSequence[ModelField]] = {
+            None: []
+        }
 
-                elif isinstance(meta, _Argument):
-                    g.add_argument(
-                        *opts,
-                        metavar=f"<{meta.metavar or meta.name.upper()}>",
-                        help=meta.desc,
-                        type=str,
-                        required=meta.required,
-                        dest=name,
-                    )
+        for field_name, field in model.__fields__.items():
+            if field_name in ["command", "config", "prog", "raw_args"]:
+                continue
 
-    def _setup_subparsers(
-        self,
+            argument_group = getattr(field.field_info, "group", None)
+            result.setdefault(argument_group, []).append(field)
+
+        return result
+
+    @classmethod
+    def _setup_argparsers(
+        cls,
+    ) -> Tuple[ArgumentParser, Mapping[Type[Command], ArgumentParser]]:
+        prog_argparser = ArgumentParser(
+            prog=cls.title(),
+            description=cls.__config__.description,
+            add_help=False,
+            formatter_class=SingleMetavarHelpFormatter,
+        )
+        cls._setup_args(prog_argparser, cls)
+
+        command_argparsers = cls._setup_command_argparsers(
+            prog_argparser, Command, cls.commands(), name=cls.title(), depth=0
+        )
+
+        return prog_argparser, command_argparsers
+
+    @classmethod
+    def _setup_command_argparsers(
+        cls,
         argparser: ArgumentParser,
-        command: Type[Command[_T_Config]],
+        command: Type[Command],
+        commands: Mapping[Type[Command], Sequence[Type[Command]]],
         *,
         name: str,
         depth: int,
-    ) -> None:
-        subcommands = (self._meta.command_hierarchy or {}).get(command)
+    ) -> Mapping[Type[Command], ArgumentParser]:
+        subcommands = commands.get(command)
         if not subcommands:
-            return
+            return {}
 
         title = depth * "sub" + "command"
         subparsers = argparser.add_subparsers(
@@ -312,116 +356,98 @@ class Program(Generic[_T_Config]):
         )
         subparsers.required = True
 
+        command_argparsers: MutableMapping[Type[Command], ArgumentParser] = {}
         for subcommand in subcommands:
-            subcommand_meta = subcommand.meta()
             subparser = subparsers.add_parser(
-                name=subcommand_meta.name,
-                aliases=subcommand_meta.aliases or [],
-                description=subcommand_meta.desc,
-                help=subcommand_meta.desc,
+                name=subcommand.title(),
+                aliases=subcommand.__config__.aliases,
+                description=subcommand.__config__.description,
+                help=subcommand.__config__.description,
                 add_help=False,
                 formatter_class=SingleMetavarHelpFormatter,
             )
             subparser.set_defaults(command=subcommand)
-            self._subparser_by_command_type[subcommand] = subparser
+            cls._setup_args(subparser, subcommand)
 
-            self._setup_subparsers(
-                subparser,
-                subcommand,
-                name=name + " " + subcommand_meta.name,
-                depth=depth + 1,
+            command_argparsers[subcommand] = subparser
+            command_argparsers.update(
+                cls._setup_command_argparsers(
+                    subparser,
+                    subcommand,
+                    commands,
+                    name=f"{name} {subcommand.title()}",
+                    depth=depth + 1,
+                )
             )
 
-            self._setup_argparser(subparser, subcommand)
+        return command_argparsers
 
-    def _load_config(self) -> _T_Config:
-        if not issubclass(self._meta.config_type, Config):
-            return cast(_T_Config, None)
+    @classmethod
+    def _parse_args(
+        cls, argparser: ArgumentParser, args: Sequence[str]
+    ) -> Tuple[Mapping[str, object], Type[Command], Path]:
+        parsed_args = {
+            arg_name: arg_value
+            for arg_name, arg_value in vars(argparser.parse_args(args)).items()
+            if arg_value is not ...
+        }
+        command = cast(Type[Command], parsed_args.pop("command", None))
+        config_overwrite_path = cast(Path, parsed_args.pop("config", None))
+        return parsed_args, command, config_overwrite_path
 
-        config_overwrite_path = cast(
-            Optional[Path], getattr(self._parsed_args, "config", None)
-        )
-        config: Config
+    @classmethod
+    def _load_config(
+        cls,
+        config_type: Optional[Type[Configuration]],
+        config_overwrite_path: Optional[Path],
+    ) -> Optional[Configuration]:
+        if not config_type:
+            return None
+
         if config_overwrite_path:
-            config = self._meta.config_type.load_from_config_file(config_overwrite_path)
+            config = config_type.load_from_config_file(config_overwrite_path)
         else:
-            config = self._meta.config_type.find_and_load_from_config_file(
-                self._meta.config_file, self._meta.config_dir
+            config = config_type.find_and_load_from_config_file(
+                cls.config_search_path()
             )
 
-        return cast(_T_Config, config)
+        if isinstance(config, LoggingConfiguration):
+            config.setup_logging()
 
-    def _parse_args(self) -> None:  # noqa: C901
-        command_cls = cast(
-            Optional[Type[Command[_T_Config]]],
-            getattr(self._parsed_args, "command", None),
-        )
-        if command_cls:
-            self.command = command_cls(self.config)
+        return config
 
-        argument_holder = self.command or self
-        for class_ in reversed(type(argument_holder).mro()):
-            for name, meta in vars(class_).items():
-                if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
-                    continue
+    def log(self) -> None:
+        cls = type(self)
+        _LOGGER.debug("Program: {} ({}):", cls.title(), get_qualified_name(cls))
+        _LOGGER.debug("  Version: {}", cls.version())
+        _LOGGER.debug("  Raw args: {}", list(self.raw_args))
 
-                raw_value = getattr(self._parsed_args, name)
-                if isinstance(meta, _Flag):
-                    setattr(argument_holder, name, bool(raw_value))
-                elif isinstance(meta, _Argument):
-                    type_ = cast(Type[Any], class_.__annotations__.get(name))
-                    value: object
-                    if raw_value is None:
-                        value = meta.default
-                    else:
-                        deserializer = meta.deserializer or (lambda x: x)
-                        value = deserializer(checked_cast(str, raw_value))
+        if not self.command:
+            _LOGGER.debug("  Command: {}", None)
+            for field_name, field_value in self.dict(
+                exclude={"command", "config", "raw_args"}
+            ).items():
+                _LOGGER.debug("    {} = {}", field_name, field_value)
 
-                    type_origin = typing_inspect.get_origin(type_)
-                    type_args = typing_inspect.get_args(type_, evaluate=True)
+        else:
+            _LOGGER.debug(
+                "  Command: {} ({}):",
+                self.command.title(),
+                get_qualified_name(type(self.command)),
+            )
+            for field_name, field_value in self.command.dict(exclude={"prog"}).items():
+                _LOGGER.debug("    {} = {}", field_name, field_value)
 
-                    type_check_passed = False
-                    if type_origin is Type:  # type: ignore
-                        type_check_passed = issubclass(
-                            value,  # type: ignore
-                            type_args[0],
-                        )
-                    elif type_origin is Union:  # type: ignore
-                        type_check_passed = any(isinstance(value, t) for t in type_args)
-                    elif type_origin is Callable:  # type: ignore
-                        type_check_passed = callable(value)
-                    else:
-                        type_check_passed = isinstance(value, type_)
+        config = cast(Optional[Configuration], getattr(self, "config", None))
+        if config:
+            _LOGGER.debug("  Config: {}", get_qualified_name(type(config)))
+            for line in str(config).splitlines()[1:-1]:
+                _LOGGER.debug("  {}", line)
 
-                    if not type_check_passed:
-                        raise ValueError(
-                            f"Deserialized value {repr(value)} of argument {name} is "
-                            f"not of type {type_}."
-                        )
-
-                    setattr(argument_holder, name, value)
-
-    def _log_state(self) -> None:
-        if isinstance(self.config, LoggingConfig):
-            self.config.setup_logging()
-
-        _LOGGER.debug("Running {} ({}):", self._meta.name, type(self))
-        _LOGGER.debug("  Version: {}", self._meta.version)
-        _LOGGER.debug("  Raw args: {}", list(self._raw_args))
-        _LOGGER.debug("  Argparse args: {}", vars(self._parsed_args))
-
+    def run(self) -> None:
+        self.log()
         if self.command:
-            _LOGGER.debug("  Command: {} ({})", self.command.meta().name, self.command)
+            self.command.run()
 
-        _LOGGER.debug("  Parsed args:")
-        argument_holder = self.command or self
-        for class_ in reversed(type(argument_holder).mro()):
-            for name, meta in vars(class_).items():
-                if not (isinstance(meta, _Flag) or isinstance(meta, _Argument)):
-                    continue
-                _LOGGER.debug("    {} = {}", name, repr(getattr(argument_holder, name)))
 
-        if self.config:
-            _LOGGER.debug("  Config:")
-            for line in toml.dumps(cast(Config, self.config).serialize()).splitlines():
-                _LOGGER.debug("    {}", line)
+Command.update_forward_refs()

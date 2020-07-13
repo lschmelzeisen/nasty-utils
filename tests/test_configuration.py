@@ -15,41 +15,32 @@
 #
 
 from logging import getLogger
-from os import chdir
 from pathlib import Path
 from typing import Mapping, Optional, Sequence
 
-import pytest
 from pydantic import SecretStr
+from pytest import raises
 
-from nasty_utils import ColoredBraceStyleAdapter, Config
+from nasty_utils import ColoredBraceStyleAdapter, Configuration
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
-def test_find_config_file(tmp_path: Path) -> None:
-    cwd = Path.cwd()
-    try:
-        chdir(tmp_path)
+def test_find_config_file(tmp_cwd: Path) -> None:
+    for directory in [Path("."), Path("myconfigdir")]:
+        config_dir = Path(".config") / directory
+        config_dir.mkdir(exist_ok=True)
 
-        for directory in [".", "myconfigdir"]:
-            Path.mkdir(tmp_path / ".config" / directory, parents=True, exist_ok=True)
+        for name in [Path("conf"), Path("myconfig.toml")]:
+            with raises(FileNotFoundError):
+                Configuration.find_config_file(directory / name)
 
-            for name in ["conf", "myconfig.toml"]:
-                with pytest.raises(FileNotFoundError):
-                    Config.find_config_file(name, directory)
+            (config_dir / name).touch()
 
-                with (tmp_path / ".config" / directory / name).open(
-                    "w", encoding="UTF-8"
-                ):
-                    pass
-
-                assert Config.find_config_file(name, directory)
-    finally:
-        chdir(cwd)
+            assert Configuration.find_config_file(directory / name)
 
 
-class MyInnerConfig(Config):
+class MyInnerConfiguration(Configuration):
     host: str = "localhost"
     port: int = 9200
     user: str = "elastic"
@@ -57,7 +48,7 @@ class MyInnerConfig(Config):
     path: Optional[Path] = None
 
 
-class MyConfig(Config):
+class MyConfiguration(Configuration):
     name: str
     age: Optional[int] = None
 
@@ -69,14 +60,13 @@ class MyConfig(Config):
     second_map: Mapping[str, Path] = {"foo": Path("barr")}
     nested_map: Mapping[str, Mapping[str, int]]
 
-    inner: MyInnerConfig
+    inner: MyInnerConfiguration
 
 
 def test_load_from_config_file(tmp_path: Path) -> None:
     config_file = tmp_path / "config.toml"
-    with config_file.open("w", encoding="UTF-8") as fout:
-        fout.write(
-            """
+    config_file.write_text(
+        """
             name = "test"
             first_list = [ 1, 2, 3 ]
             second_list = [ "1", "2", "3" ]
@@ -91,10 +81,11 @@ def test_load_from_config_file(tmp_path: Path) -> None:
             user = "test-user"
             password = "test-pass"
             path = "test.path"
-            """
-        )
+        """,
+        encoding="UTf-8",
+    )
 
-    config = MyConfig.load_from_config_file(config_file)
+    config = MyConfiguration.load_from_config_file(config_file)
 
     assert config.name == "test"
     assert config.age is None
@@ -115,12 +106,12 @@ def test_load_from_config_file(tmp_path: Path) -> None:
     assert config.inner.path is not None and config.inner.path.name == "test.path"
 
 
-class InheritingConfig(MyConfig):
+class InheritingConfiguration(MyConfiguration):
     foo: str
 
 
-def test_inheriting_config() -> None:
-    config = InheritingConfig.load_from_str(
+def test_inheriting_configuration() -> None:
+    config = InheritingConfiguration.load_from_str(
         """
         foo = "bar"
 
@@ -137,41 +128,34 @@ def test_inheriting_config() -> None:
     assert config.foo == "bar"
 
 
-class PathConfig(Config):
+class PathConfiguration(Configuration):
     path: Path
 
 
-def test_path_config(tmp_path: Path) -> None:
+def test_path_configuration(tmp_cwd: Path) -> None:
     config_contents = """
-        path = "${CONFIG_FILE}/test.path"
+        path = "{CONFIG_FILE}/test.path"
     """
 
-    with pytest.raises(ValueError):
-        PathConfig.load_from_str(config_contents)
+    with raises(ValueError):
+        PathConfiguration.load_from_str(config_contents)
 
-    cwd = Path.cwd()
-    try:
-        chdir(tmp_path)
+    config_dir = Path(".config")
+    config_dir.mkdir()
+    (config_dir / "config.toml").write_text(config_contents, encoding="UTF-8")
 
-        Path.mkdir(tmp_path / ".config")
-        with (tmp_path / ".config" / "config.toml").open("w", encoding="UTF-8") as fout:
-            fout.write(config_contents)
-
-        config = PathConfig.find_and_load_from_config_file("config.toml")
-        _LOGGER.debug("Path when loading from file: '{}'", config.path)
-        assert config.path.name == "test.path"
-        assert config.path.parent.name == ".config"
-        assert config.path.parent.parent.name == tmp_path.name
-    finally:
-        chdir(cwd)
+    config = PathConfiguration.find_and_load_from_config_file(Path("config.toml"))
+    assert config.path.name == "test.path"
+    assert config.path.parent.name == ".config"
+    assert config.path.parent.parent.resolve() == tmp_cwd
 
 
-class InnerOptionalConfig(Config):
-    inner: Optional[MyInnerConfig] = None
+class InnerOptionalConfiguration(Configuration):
+    inner: Optional[MyInnerConfiguration] = None
 
 
-def test_inner_optional_config() -> None:
-    config = InnerOptionalConfig.load_from_str(
+def test_inner_optional_configuration() -> None:
+    config = InnerOptionalConfiguration.load_from_str(
         """
         [inner]
         host = "localhost"
@@ -179,16 +163,16 @@ def test_inner_optional_config() -> None:
     )
     assert config.inner is not None and config.inner.host == "localhost"
 
-    config = InnerOptionalConfig.load_from_str("")
+    config = InnerOptionalConfiguration.load_from_str("")
     assert config.inner is None
 
 
-class InnerSequenceConfig(Config):
-    inner: Sequence[MyInnerConfig] = []
+class InnerSequenceConfiguration(Configuration):
+    inner: Sequence[MyInnerConfiguration] = []
 
 
-def test_inner_sequence_config() -> None:
-    config = InnerSequenceConfig.load_from_str(
+def test_inner_sequence_configuration() -> None:
+    config = InnerSequenceConfiguration.load_from_str(
         """
         [[inner]]
         host = "localhost1"
@@ -204,5 +188,25 @@ def test_inner_sequence_config() -> None:
     for i in range(3):
         assert config.inner[i].host == f"localhost{i+1}"
 
-    config = InnerSequenceConfig.load_from_str("")
+    config = InnerSequenceConfiguration.load_from_str("")
     assert len(config.inner) == 0
+
+
+class CanNotDefaultConfiguration(Configuration):
+    foo: int
+
+
+class CanDefaultConfiguration(Configuration):
+    foo: int = 5
+
+
+def test_can_default_configuration() -> None:
+    path = Path("config.toml")
+
+    assert not CanNotDefaultConfiguration.can_default()
+    with raises(FileNotFoundError):
+        CanNotDefaultConfiguration.find_and_load_from_config_file(path)
+
+    assert CanDefaultConfiguration.can_default()
+    config = CanDefaultConfiguration.find_and_load_from_config_file(path)
+    assert config.foo == 5

@@ -17,14 +17,14 @@
 import json
 from pathlib import Path
 
-import pytest
+from pytest import raises
 
 from nasty_utils import FileNotOnServerError, download_file_with_progressbar, sha256sum
 
 
 def test_download_file_with_progressbar(tmp_path: Path) -> None:
     dest = tmp_path / "does-not-eixst.txt"
-    with pytest.raises(FileNotOnServerError):
+    with raises(FileNotOnServerError):
         download_file_with_progressbar(
             "https://example.org/" + dest.name, dest=dest, description=dest.name
         )
@@ -38,11 +38,10 @@ def test_download_file_with_progressbar(tmp_path: Path) -> None:
     )
 
     # Validate download.
-    with dest.open("r", encoding="UTF-8") as fin:
-        content = json.load(fin)
-        assert len(content["countries"]) == 246
-        for country in content["countries"]:
-            assert "name" in country and "isoCode" in country
+    content = json.loads(dest.read_text(encoding="UTF-8"))
+    assert len(content["countries"]) == 246
+    for country in content["countries"]:
+        assert "name" in country and "isoCode" in country
 
 
 def test_sha256sum(tmp_path: Path) -> None:
