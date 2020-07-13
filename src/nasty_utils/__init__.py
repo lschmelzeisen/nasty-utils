@@ -50,7 +50,7 @@ from nasty_utils.program import (
     ProgramConfig,
 )
 from nasty_utils.settings import Settings, SettingsConfig
-from nasty_utils.typing_ import checked_cast
+from nasty_utils.typing_ import checked_cast, safe_issubclass
 
 __all__ = [
     "date_range",
@@ -86,6 +86,7 @@ __all__ = [
     "Settings",
     "SettingsConfig",
     "checked_cast",
+    "safe_issubclass",
 ]
 
 __version__ = "dev"

@@ -34,6 +34,7 @@ from pydantic.fields import ModelField
 from xdg import XDG_CONFIG_DIRS, XDG_CONFIG_HOME
 
 from nasty_utils.logging_ import ColoredBraceStyleAdapter
+from nasty_utils.typing_ import safe_issubclass
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -63,12 +64,7 @@ class Settings(BaseModel):
         values: Mapping[str, object],
         field: ModelField,
     ) -> object:
-        if not (
-            # In >=3.7 typing.Sequence/Mapping is not a normal type.
-            type(field.type_) == type(object)
-            and issubclass(field.type_, Path)
-            and value
-        ):
+        if not (safe_issubclass(field.type_, Path) and value):
             return value
 
         if isinstance(value, str) or isinstance(value, Path):

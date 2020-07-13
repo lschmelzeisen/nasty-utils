@@ -220,48 +220,81 @@ def test_subclass_command_program(capsys: CaptureFixture) -> None:
     assert capsys.readouterr().out == ChildCommand.__name__ + "\n"
 
 
-class MySettings(Settings):
+class FooSettings(Settings):
     class Config(SettingsConfig):
-        search_path = Path("settings.toml")
+        search_path = Path("foo.toml")
 
     n: float
 
 
-class MySettingsProgram(Program):
-    settings: MySettings
+class SettingsProgram(Program):
+    settings: FooSettings
 
 
-def test_my_settings_program(tmp_cwd: Path) -> None:
+def test_settings_program(tmp_cwd: Path) -> None:
     with raises(FileNotFoundError):  # Settings file does not exist.
-        MySettingsProgram.init()
+        SettingsProgram.init()
 
     settings_dir = Path(".config")
     settings_dir.mkdir()
 
-    settings_file = settings_dir / "settings.toml"
+    settings_file = settings_dir / "foo.toml"
     settings_file.touch()
 
     with raises(ValidationError):  # Settings contents are required.
-        MySettingsProgram.init()
+        SettingsProgram.init()
 
     settings_file.write_text("n = 3.14", encoding="UTF-8")
 
-    prog = MySettingsProgram.init()
-    assert isinstance(prog.settings, MySettings)
+    prog = SettingsProgram.init()
+    assert isinstance(prog.settings, FooSettings)
+    assert prog.settings.settings_file.resolve() == settings_file.resolve()
     assert prog.settings.n == 3.14
 
-    settings_file = Path("alt-settings.toml")
+    settings_file = Path("overwrite.toml")
     settings_file.write_text("n = 10.0", encoding="UTF-8")
 
-    prog = MySettingsProgram.init("--config", str(settings_file))
-    assert isinstance(prog.settings, MySettings)
+    prog = SettingsProgram.init("--settings", str(settings_file))
+    assert isinstance(prog.settings, FooSettings)
+    assert prog.settings.settings_file.resolve() == settings_file.resolve()
     assert prog.settings.n == 10.0
 
 
-class SettingsMisuseProgram(Program):
-    settings: int
+class BarSettings(Settings):
+    m: int
 
 
-def test_settings_misuse_program() -> None:
-    with raises(TypeError):
-        SettingsMisuseProgram.init()
+class MultipleSettingsProgram(Program):
+    foo: FooSettings
+    bar: BarSettings = Argument(
+        short_alias="b", description="Overwrite bar setting path."
+    )
+
+    @overrides
+    def run(self) -> None:
+        super().run()
+        print(self.foo.n * self.bar.m)
+
+
+def test_multiple_settings_program(tmp_path: Path, capsys: CaptureFixture) -> None:
+    with raises(SystemExit):
+        MultipleSettingsProgram.init("-h")
+
+    foo_settings_file = tmp_path / "my-foo.toml"
+    foo_settings_file.write_text("n = 3.5", encoding="UTF-8")
+
+    bar_settings_file = tmp_path / "my-bar.toml"
+    bar_settings_file.write_text("m = 4", encoding="UTF-8")
+
+    capsys.readouterr()
+    prog = MultipleSettingsProgram.init(
+        "--foo", str(foo_settings_file), "-b", str(bar_settings_file)
+    )
+    assert isinstance(prog.foo, FooSettings)
+    assert prog.foo.settings_file.resolve() == foo_settings_file.resolve()
+    assert prog.foo.n == 3.5
+    assert isinstance(prog.bar, BarSettings)
+    assert prog.bar.settings_file.resolve() == bar_settings_file.resolve()
+    assert prog.bar.m == 4
+    prog.run()
+    assert capsys.readouterr().out == "14.0\n"

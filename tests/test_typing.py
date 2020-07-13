@@ -14,9 +14,13 @@
 # limitations under the License.
 #
 
+from logging import FileHandler, Handler
+from sys import version_info
+from typing import Sequence
+
 from pytest import raises
 
-from nasty_utils import checked_cast
+from nasty_utils import checked_cast, safe_issubclass
 
 
 def test_checked_cast() -> None:
@@ -26,3 +30,13 @@ def test_checked_cast() -> None:
 
     with raises(AssertionError):
         checked_cast(int, 3.5)
+
+
+def test_safe_issubclass() -> None:
+    assert safe_issubclass(FileHandler, Handler)
+    assert not safe_issubclass(Handler, FileHandler)
+
+    if version_info >= (3, 7):
+        with raises(TypeError):
+            issubclass(Sequence[int], Sequence)
+        assert not safe_issubclass(Sequence[int], Sequence)

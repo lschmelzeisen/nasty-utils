@@ -44,6 +44,7 @@ class MyCommand(Command):
         description = "Description of my command."
 
     arg: int = Argument(0, short_alias="a", description="Description of my arg.")
+    settings: LoggingSettings
 
     @overrides
     def run(self) -> None:
@@ -73,8 +74,6 @@ class MyProgram(Program):
         description = "Description of my program."
         commands = [MyCommand]
 
-    settings: LoggingSettings
-
 
 @mark.skip
 def test_logging() -> None:
@@ -83,7 +82,7 @@ def test_logging() -> None:
     )
     p = Process(
         target=lambda: MyProgram.init(
-            "my", "--config", str(settings_file), "-a", "5"
+            "my", "--settings", str(settings_file), "-a", "5"
         ).run()
     )
     p.start()

@@ -43,6 +43,7 @@ from nasty_utils.logging_ import ColoredBraceStyleAdapter
 from nasty_utils.logging_settings import LoggingSettings
 from nasty_utils.misc import get_qualified_name
 from nasty_utils.settings import Settings
+from nasty_utils.typing_ import safe_issubclass
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -173,21 +174,6 @@ class Program(BaseModel):
         return cls.__config__.version or "unversioned"
 
     @classmethod
-    def settings_type(cls) -> Optional[Type[Settings]]:
-        settings_field = cls.__fields__.get("settings")
-        if not settings_field:
-            return None
-
-        settings_type: Type[Any] = settings_field.outer_type_
-        if issubclass(settings_type, Settings):
-            return settings_type
-
-        raise TypeError(
-            "If field `settings` exists it must be annotated with a type that "
-            "subclasses nasty_utils.Settings."
-        )
-
-    @classmethod
     def commands(cls) -> Mapping[Type[Command], Sequence[Type[Command]]]:
         commands = cls.__config__.commands
         if isinstance(commands, Sequence):
@@ -199,33 +185,31 @@ class Program(BaseModel):
 
     @classmethod
     def init(cls: Type[_T_Program], *args: str) -> _T_Program:
-        settings_type = cls.settings_type()
-        if settings_type and issubclass(settings_type, LoggingSettings):
-            settings_type.setup_memory_logging()
+        for field in cls.__fields__.values():
+            if safe_issubclass(field.outer_type_, LoggingSettings):
+                field.outer_type_.setup_memory_logging()
+                break
 
-        prog_argparser, command_argparsers = cls._setup_argparsers()
-        parsed_args, command, settings_overwrite_path = cls._parse_args(
-            prog_argparser, args
-        )
-        settings = cls._load_settings(settings_type, settings_overwrite_path)
+        root_argparser, command_argparsers = cls._setup_argparsers()
+        parsed_args, model = cls._parse_args(root_argparser, args)
 
         prog_obj: MutableMapping[str, object] = {"raw_args": tuple(args)}
-        if settings_type:
-            prog_obj["settings"] = settings
-        if not command:
+        if model == cls:
+            assert issubclass(model, Program)
             prog_obj.update(parsed_args)
 
         try:
             prog = cls.parse_obj(prog_obj)
         except ValidationError as e:
-            prog_argparser.error(str(e))
+            root_argparser.error(str(e))
 
-        if command:
+        if model != cls:
+            assert issubclass(model, Command)
             try:
                 command_obj = dict(parsed_args, prog=prog)
-                prog.command = command.parse_obj(command_obj)
+                prog.command = model.parse_obj(command_obj)
             except ValidationError as e:
-                command_argparsers[command].error(str(e))
+                command_argparsers[model].error(str(e))
 
         return prog
 
@@ -233,6 +217,8 @@ class Program(BaseModel):
     def _setup_args(
         cls, argparser: ArgumentParser, model: Union[Type["Program"], Type[Command]]
     ) -> None:
+        argparser.set_defaults(model=model)
+
         g = argparser.add_argument_group("General Arguments")
 
         # The following and the add_help=False of ArgumentParser() are s to customize
@@ -252,14 +238,6 @@ class Program(BaseModel):
             version=f"{cls.title()} {cls.version()}",
             help="Show program's version string and exit.",
         )
-
-        if "settings" in cls.__fields__:
-            g.add_argument(
-                "--config",
-                metavar="<CONFIG>",
-                type=Path,
-                help="Overwrite default config file path.",
-            )
 
         for argument_group, fields in cls._get_argument_groups(model).items():
             if argument_group:
@@ -285,7 +263,9 @@ class Program(BaseModel):
                 else:
                     kwargs["type"] = str
                     kwargs["metavar"] = f"<{metavar}>"
-                    kwargs["required"] = field.required
+                    kwargs["required"] = field.required and not safe_issubclass(
+                        field.outer_type_, Settings
+                    )
                     kwargs["default"] = ...
 
                 g.add_argument(*args, **kwargs)
@@ -299,7 +279,7 @@ class Program(BaseModel):
         }
 
         for field_name, field in model.__fields__.items():
-            if field_name in ["command", "settings", "prog", "raw_args"]:
+            if field_name in ["command", "prog", "raw_args"]:
                 continue
 
             argument_group = getattr(field.field_info, "group", None)
@@ -311,19 +291,19 @@ class Program(BaseModel):
     def _setup_argparsers(
         cls,
     ) -> Tuple[ArgumentParser, Mapping[Type[Command], ArgumentParser]]:
-        prog_argparser = ArgumentParser(
+        root_argparser = ArgumentParser(
             prog=cls.title(),
             description=cls.__config__.description,
             add_help=False,
             formatter_class=SingleMetavarHelpFormatter,
         )
-        cls._setup_args(prog_argparser, cls)
+        cls._setup_args(root_argparser, cls)
 
         command_argparsers = cls._setup_command_argparsers(
-            prog_argparser, Command, cls.commands(), name=cls.title(), depth=0
+            root_argparser, Command, cls.commands(), name=cls.title(), depth=0
         )
 
-        return prog_argparser, command_argparsers
+        return root_argparser, command_argparsers
 
     @classmethod
     def _setup_command_argparsers(
@@ -361,7 +341,6 @@ class Program(BaseModel):
                 add_help=False,
                 formatter_class=SingleMetavarHelpFormatter,
             )
-            subparser.set_defaults(command=subcommand)
             cls._setup_args(subparser, subcommand)
 
             command_argparsers[subcommand] = subparser
@@ -380,35 +359,33 @@ class Program(BaseModel):
     @classmethod
     def _parse_args(
         cls, argparser: ArgumentParser, args: Sequence[str]
-    ) -> Tuple[Mapping[str, object], Type[Command], Path]:
-        parsed_args = {
+    ) -> Tuple[Mapping[str, object], Union[Type["Program"], Type[Command]]]:
+        parsed_args: MutableMapping[str, object] = {
             arg_name: arg_value
             for arg_name, arg_value in vars(argparser.parse_args(args)).items()
             if arg_value is not ...
         }
-        command = cast(Type[Command], parsed_args.pop("command", None))
-        settings_overwrite_path = cast(Path, parsed_args.pop("config", None))
-        return parsed_args, command, settings_overwrite_path
 
-    @classmethod
-    def _load_settings(
-        cls,
-        settings_type: Optional[Type[Settings]],
-        settings_overwrite_path: Optional[Path],
-    ) -> Optional[Settings]:
-        if not settings_type:
-            return None
-
-        settings = (
-            settings_type.load_from_settings_file(settings_overwrite_path)
-            if settings_overwrite_path
-            else settings_type.find_and_load_from_settings_file()
+        model = cast(
+            Union[Type[Program], Type[Command]], parsed_args.pop("model", None)
         )
 
-        if isinstance(settings, LoggingSettings):
-            settings.setup_logging()
+        for field_name, field in model.__fields__.items():
+            settings_type = field.outer_type_
+            if safe_issubclass(settings_type, Settings):
+                settings_file = cast(Optional[str], parsed_args.pop(field_name, None))
+                settings = (
+                    settings_type.load_from_settings_file(Path(settings_file))
+                    if settings_file
+                    else settings_type.find_and_load_from_settings_file()
+                )
 
-        return settings
+                if isinstance(settings, LoggingSettings):
+                    settings.setup_logging()
+
+                parsed_args[field_name] = settings
+
+        return parsed_args, model
 
     def log(self) -> None:
         cls = type(self)
@@ -418,10 +395,19 @@ class Program(BaseModel):
 
         if not self.command:
             _LOGGER.debug("  Command: {}", None)
-            for field_name, field_value in self.dict(
-                exclude={"command", "settings", "raw_args"}
-            ).items():
-                _LOGGER.debug("    {} = {}", field_name, field_value)
+            for field_name in self.__fields__.keys():
+                if field_name in ("command", "raw_args"):
+                    continue
+                field_value = getattr(self, field_name)
+                if isinstance(field_value, Settings):
+                    _LOGGER.debug(
+                        "    {} = {}", field_name, get_qualified_name(type(field_value))
+                    )
+                    for line in str(field_value).splitlines()[1:-1]:
+                        _LOGGER.debug("    {}", line)
+
+                else:
+                    _LOGGER.debug("    {} = {}", field_name, field_value)
 
         else:
             _LOGGER.debug(
@@ -429,14 +415,19 @@ class Program(BaseModel):
                 self.command.title(),
                 get_qualified_name(type(self.command)),
             )
-            for field_name, field_value in self.command.dict(exclude={"prog"}).items():
-                _LOGGER.debug("    {} = {}", field_name, field_value)
+            for field_name in self.command.__fields__.keys():
+                if field_name in ("prog",):
+                    continue
+                field_value = getattr(self.command, field_name)
+                if isinstance(field_value, Settings):
+                    _LOGGER.debug(
+                        "    {} = {}", field_name, get_qualified_name(type(field_value))
+                    )
+                    for line in str(field_value).splitlines()[1:-1]:
+                        _LOGGER.debug("    {}", line)
 
-        settings = cast(Optional[Settings], getattr(self, "settings", None))
-        if settings:
-            _LOGGER.debug("  Settings: {}", get_qualified_name(type(settings)))
-            for line in str(settings).splitlines()[1:-1]:
-                _LOGGER.debug("  {}", line)
+                else:
+                    _LOGGER.debug("    {} = {}", field_name, field_value)
 
     def run(self) -> None:
         self.log()
