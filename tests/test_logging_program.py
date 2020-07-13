@@ -28,15 +28,17 @@ from nasty_utils import (
     Argument,
     ColoredBraceStyleAdapter,
     Command,
+    CommandConfig,
     LoggingSettings,
     Program,
+    ProgramConfig,
 )
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
 class MyCommand(Command):
-    class Config:
+    class Config(CommandConfig):
         title = "my"
         description = "Description of my command."
 
@@ -64,7 +66,7 @@ class MyCommand(Command):
 
 
 class MyProgram(Program):
-    class Config:
+    class Config(ProgramConfig):
         title = "myprog"
         version = nasty_utils.__version__
         description = "Description of my program."

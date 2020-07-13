@@ -21,7 +21,7 @@ from typing import AbstractSet, Mapping, Optional, Sequence, Type, TypeVar
 
 import toml
 from overrides import overrides
-from pydantic import BaseModel, Extra, FilePath, validator
+from pydantic import BaseConfig, BaseModel, Extra, FilePath, validator
 from pydantic.fields import ModelField
 from xdg import XDG_CONFIG_DIRS, XDG_CONFIG_HOME
 
@@ -33,7 +33,7 @@ _T_Settings = TypeVar("_T_Settings", bound="Settings")
 
 
 class Settings(BaseModel):
-    class Config:
+    class Config(BaseConfig):
         validate_all = True
         extra = Extra.forbid
         allow_mutation = False

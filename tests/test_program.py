@@ -20,13 +20,21 @@ from typing import Optional
 from pydantic import ValidationError
 from pytest import raises
 
-from nasty_utils import Argument, ArgumentGroup, Command, Program, Settings
+from nasty_utils import (
+    Argument,
+    ArgumentGroup,
+    Command,
+    CommandConfig,
+    Program,
+    ProgramConfig,
+    Settings,
+)
 
 _MY_GROUP = ArgumentGroup(name="My Group", description="my group desc")
 
 
 class ArgProgram(Program):
-    class Config:
+    class Config(ProgramConfig):
         title = "myprog"
         version = "0.0.0"
         description = "My program description."
@@ -72,7 +80,7 @@ class ArgCommand(Command):
 
 
 class ArgCommandProgram(Program):
-    class Config:
+    class Config(ProgramConfig):
         commands = [ArgCommand]
 
 
@@ -91,31 +99,31 @@ def test_arg_command_program() -> None:
 class FooCommand(Command):
     prog: "SubcommandProgram"
 
-    class Config:
+    class Config(CommandConfig):
         title = "foo"
         aliases = ("f",)
 
 
 class BarCommand(Command):
-    class Config:
+    class Config(CommandConfig):
         title = "bar"
         aliases = ("b",)
 
 
 class BazCommand(Command):
-    class Config:
+    class Config(CommandConfig):
         title = "baz"
         aliases = ("b",)
 
 
 class QuxCommand(Command):
-    class Config:
+    class Config(CommandConfig):
         title = "qux"
         aliases = ("q", "u")
 
 
 class SubcommandProgram(Program):
-    class Config:
+    class Config(ProgramConfig):
         commands = {
             FooCommand: Command,
             BarCommand: Command,
@@ -162,21 +170,21 @@ class ChildCommand(ParenCommand):
     test_file: Path
 
 
-class SuclassCommandProgram(Program):
-    class Config:
+class SubclassCommandProgram(Program):
+    class Config(ProgramConfig):
         commands = [ParenCommand, ChildCommand]
 
 
 def test_subclass_command_program() -> None:
-    prog = SuclassCommandProgram.init(ParenCommand.__name__, "--in_file", "in.file")
+    prog = SubclassCommandProgram.init(ParenCommand.__name__, "--in_file", "in.file")
     assert isinstance(prog.command, ParenCommand)
     assert prog.command.in_file == Path("in.file")
     assert prog.command.out_file is None
 
     with raises(SystemExit):  # Argument in_file missing.
-        SuclassCommandProgram.init(ChildCommand.__name__, "--test_file", "test.file")
+        SubclassCommandProgram.init(ChildCommand.__name__, "--test_file", "test.file")
 
-    prog = SuclassCommandProgram.init(
+    prog = SubclassCommandProgram.init(
         ChildCommand.__name__, "--in_file", "in.file", "--test_file", "test.file"
     )
     assert isinstance(prog.command, ChildCommand)
