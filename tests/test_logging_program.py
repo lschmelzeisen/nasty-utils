@@ -28,7 +28,7 @@ from nasty_utils import (
     Argument,
     ColoredBraceStyleAdapter,
     Command,
-    LoggingConfiguration,
+    LoggingSettings,
     Program,
 )
 
@@ -68,10 +68,10 @@ class MyProgram(Program):
         title = "myprog"
         version = nasty_utils.__version__
         description = "Description of my program."
-        config_search_path = Path("nasty.toml")
+        settings_search_path = Path("nasty.toml")
         commands = [MyCommand]
 
-    config: LoggingConfiguration
+    settings: LoggingSettings
 
 
 def test_logging() -> None:

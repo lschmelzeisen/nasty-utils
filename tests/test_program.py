@@ -20,7 +20,7 @@ from typing import Optional
 from pydantic import ValidationError
 from pytest import raises
 
-from nasty_utils import Argument, ArgumentGroup, Command, Configuration, Program
+from nasty_utils import Argument, ArgumentGroup, Command, Program, Settings
 
 _MY_GROUP = ArgumentGroup(name="My Group", description="my group desc")
 
@@ -185,36 +185,36 @@ def test_subclass_command_program() -> None:
     assert prog.command.test_file == Path("test.file")
 
 
-class MyConfiguration(Configuration):
+class MySettings(Settings):
     n: float
 
 
-class MyConfigurationProgram(Program):
-    config: MyConfiguration
+class MySettingsProgram(Program):
+    settings: MySettings
 
 
-def test_my_configuration_program(tmp_cwd: Path) -> None:
-    with raises(FileNotFoundError):  # Config file does not exist.
-        MyConfigurationProgram.init()
+def test_my_settings_program(tmp_cwd: Path) -> None:
+    with raises(FileNotFoundError):  # Settings file does not exist.
+        MySettingsProgram.init()
 
-    config_dir = Path(".config")
-    config_dir.mkdir()
+    settings_dir = Path(".config")
+    settings_dir.mkdir()
 
-    config_file = config_dir / (MyConfigurationProgram.__name__ + ".toml")
-    config_file.touch()
+    settings_file = settings_dir / (MySettingsProgram.__name__ + ".toml")
+    settings_file.touch()
 
-    with raises(ValidationError):  # Config contents are required.
-        MyConfigurationProgram.init()
+    with raises(ValidationError):  # Settings contents are required.
+        MySettingsProgram.init()
 
-    config_file.write_text("n = 3.14", encoding="UTF-8")
+    settings_file.write_text("n = 3.14", encoding="UTF-8")
 
-    prog = MyConfigurationProgram.init()
-    assert isinstance(prog.config, MyConfiguration)
-    assert prog.config.n == 3.14
+    prog = MySettingsProgram.init()
+    assert isinstance(prog.settings, MySettings)
+    assert prog.settings.n == 3.14
 
-    config_file = Path("alt-config.toml")
-    config_file.write_text("n = 10.0", encoding="UTF-8")
+    settings_file = Path("alt-settings.toml")
+    settings_file.write_text("n = 10.0", encoding="UTF-8")
 
-    prog = MyConfigurationProgram.init("--config", str(config_file))
-    assert isinstance(prog.config, MyConfiguration)
-    assert prog.config.n == 10.0
+    prog = MySettingsProgram.init("--config", str(settings_file))
+    assert isinstance(prog.settings, MySettings)
+    assert prog.settings.n == 10.0

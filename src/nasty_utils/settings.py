@@ -29,16 +29,16 @@ from nasty_utils.logging_ import ColoredBraceStyleAdapter
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
-_T_Configuration = TypeVar("_T_Configuration", bound="Configuration")
+_T_Settings = TypeVar("_T_Settings", bound="Settings")
 
 
-class Configuration(BaseModel):
-    class Config:  # Pydantic config, not related to this class's configuration nature.
+class Settings(BaseModel):
+    class Config:
         validate_all = True
         extra = Extra.forbid
         allow_mutation = False
 
-    config_file: Optional[FilePath]
+    settings_file: Optional[FilePath]
 
     # TODO: does probably not work with Path's in nested BaseModels.
     @validator("*", pre=True)
@@ -58,14 +58,14 @@ class Configuration(BaseModel):
 
         if isinstance(value, str) or isinstance(value, Path):
             v = str(value)
-            if "{CONFIG_FILE}" in v:
-                config_file = values.get("config_file")
-                if not config_file:
+            if "{SETTINGS_DIR}" in v:
+                settings_file = values.get("settings_file")
+                if not settings_file:
                     raise ValueError(
-                        "Can not use '{CONFIG_FILE}' placeholder in configuration not "
+                        "Can not use '{SETTINGS_DIR}' placeholder in settings not "
                         "loaded from a file."
                     )
-                v = v.replace("{CONFIG_FILE}", str(Path(str(config_file)).parent))
+                v = v.replace("{SETTINGS_DIR}", str(Path(str(settings_file)).parent))
             return v
         elif isinstance(value, Mapping):
             return {k: cls._expand_paths(v, values, field) for k, v in value.items()}
@@ -86,62 +86,60 @@ class Configuration(BaseModel):
         return True
 
     @classmethod
-    def find_config_file(cls, search_path: Path) -> Path:
-        config_dirs = [Path.cwd() / ".config"]
-        while config_dirs[-1].parent.parent != config_dirs[-1].parent:
-            config_dirs.append(config_dirs[-1].parent.parent / ".config")
+    def find_settings_file(cls, search_path: Path) -> Path:
+        settings_dirs = [Path.cwd() / ".config"]
+        while settings_dirs[-1].parent.parent != settings_dirs[-1].parent:
+            settings_dirs.append(settings_dirs[-1].parent.parent / ".config")
 
-        config_dirs.append(XDG_CONFIG_HOME)
-        config_dirs.extend(XDG_CONFIG_DIRS)
+        settings_dirs.append(XDG_CONFIG_HOME)
+        settings_dirs.extend(XDG_CONFIG_DIRS)
 
-        for config_dir in config_dirs:
-            path = config_dir / search_path
+        for settings_dir in settings_dirs:
+            path = settings_dir / search_path
             if path.exists():
                 return path
 
         raise FileNotFoundError(
-            f"Could not find configuration file '{search_path}'. Checked at the "
+            f"Could not find settings file '{search_path}'. Checked at the "
             "following locations:\n"
-            + "\n".join("- " + str(config_dir) for config_dir in config_dirs)
+            + "\n".join("- " + str(settings_dir) for settings_dir in settings_dirs)
         )
 
     @classmethod
-    def find_and_load_from_config_file(
-        cls: Type[_T_Configuration], search_path: Path
-    ) -> _T_Configuration:
+    def find_and_load_from_settings_file(
+        cls: Type[_T_Settings], search_path: Path
+    ) -> _T_Settings:
         try:
-            config_file = cls.find_config_file(search_path)
+            settings_file = cls.find_settings_file(search_path)
         except FileNotFoundError:
             if cls.can_default():
                 _LOGGER.debug(
-                    "Loading default {} since no config file was found...", cls.__name__
+                    "Loading default {} since no settings file was found...",
+                    cls.__name__,
                 )
                 return cls()
             else:
                 raise
-        return cls.load_from_config_file(config_file)
+        return cls.load_from_settings_file(settings_file)
 
     @classmethod
-    def load_from_config_file(
-        cls: Type[_T_Configuration], config_file: Path
-    ) -> _T_Configuration:
-        _LOGGER.debug("Loading {} from '{}'...", cls.__name__, config_file)
+    def load_from_settings_file(
+        cls: Type[_T_Settings], settings_file: Path
+    ) -> _T_Settings:
+        _LOGGER.debug("Loading {} from '{}'...", cls.__name__, settings_file)
         return cls.load_from_str(
-            config_file.read_text(encoding="UTF-8"), config_file=config_file
+            settings_file.read_text(encoding="UTF-8"), settings_file=settings_file
         )
 
     @classmethod
     def load_from_str(
-        cls: Type[_T_Configuration],
-        toml_str: str,
-        *,
-        config_file: Optional[Path] = None,
-    ) -> _T_Configuration:
-        config_dict = toml.loads(toml_str)
-        config_dict["config_file"] = config_file
-        return cls.parse_obj(config_dict)
+        cls: Type[_T_Settings], toml_str: str, *, settings_file: Optional[Path] = None,
+    ) -> _T_Settings:
+        settings_dict = toml.loads(toml_str)
+        settings_dict["settings_file"] = settings_file
+        return cls.parse_obj(settings_dict)
 
     @overrides
     def __str__(self) -> str:
-        formatted = pformat(self.dict(exclude={"config_file"}), indent=2)
+        formatted = pformat(self.dict(exclude={"settings_file"}), indent=2)
         return f"{type(self).__name__}{{\n {formatted[len('{'):-len('}')]}\n}}"

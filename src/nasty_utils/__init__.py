@@ -16,7 +16,6 @@
 
 import logging
 
-from nasty_utils.configuration import Configuration
 from nasty_utils.datetime_ import (  # parse_yyyy_mm_arg, parse_yyyy_mm_dd_arg,
     date_range,
     date_to_datetime,
@@ -39,10 +38,7 @@ from nasty_utils.logging_ import (
     TqdmAwareFileHandler,
     TqdmAwareStreamHandler,
 )
-from nasty_utils.logging_configuration import (
-    DEFAULT_LOGGING_CONFIGURATION,
-    LoggingConfiguration,
-)
+from nasty_utils.logging_settings import DEFAULT_LOGGING_SETTINGS, LoggingSettings
 from nasty_utils.misc import camel_case_split, get_qualified_name  # , parse_enum_arg
 from nasty_utils.program import (
     Argument,
@@ -53,10 +49,11 @@ from nasty_utils.program import (
     Program,
     ProgramConfig,
 )
+from nasty_utils.settings import Settings
 from nasty_utils.typing_ import checked_cast
 
 __all__ = [
-    "Configuration",
+    "Settings",
     "date_range",
     "date_to_datetime",
     "date_to_timestamp",
@@ -75,8 +72,8 @@ __all__ = [
     "DynamicFileHandler",
     "TqdmAwareFileHandler",
     "TqdmAwareStreamHandler",
-    "DEFAULT_LOGGING_CONFIGURATION",
-    "LoggingConfiguration",
+    "DEFAULT_LOGGING_SETTINGS",
+    "LoggingSettings",
     "camel_case_split",
     "get_qualified_name",
     # "parse_enum_arg",

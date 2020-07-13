@@ -39,10 +39,10 @@ from pydantic.dataclasses import dataclass
 from pydantic.fields import FieldInfo, ModelField, Undefined
 
 from nasty_utils._util.argparse_ import SingleMetavarHelpFormatter
-from nasty_utils.configuration import Configuration
 from nasty_utils.logging_ import ColoredBraceStyleAdapter
-from nasty_utils.logging_configuration import LoggingConfiguration
+from nasty_utils.logging_settings import LoggingSettings
 from nasty_utils.misc import get_qualified_name
+from nasty_utils.settings import Settings
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -145,7 +145,7 @@ class ProgramConfig(BaseConfig):
     title: Optional[str] = None  # type: ignore
     version: Optional[str] = None
     description: Optional[str] = None
-    config_search_path: Optional[Path] = None
+    settings_search_path: Optional[Path] = None
     commands: Union[Sequence[Type[Command]], Mapping[Type[Command], Type[Command]]] = []
 
 
@@ -174,23 +174,23 @@ class Program(BaseModel):
         return cls.__config__.version or "unversioned"
 
     @classmethod
-    def config_type(cls) -> Optional[Type[Configuration]]:
-        config_field = cls.__fields__.get("config")
-        if not config_field:
+    def settings_type(cls) -> Optional[Type[Settings]]:
+        settings_field = cls.__fields__.get("settings")
+        if not settings_field:
             return None
 
-        config_type: Type[Any] = config_field.outer_type_
-        if issubclass(config_type, Configuration):
-            return config_type
+        settings_type: Type[Any] = settings_field.outer_type_
+        if issubclass(settings_type, Settings):
+            return settings_type
 
         raise TypeError(
-            "If field `config` exists it must be annotated with a type that "
-            "subclasses nasty_utils.Configuration."
+            "If field `settings` exists it must be annotated with a type that "
+            "subclasses nasty_utils.Settings."
         )
 
     @classmethod
-    def config_search_path(cls) -> Path:
-        return cls.__config__.config_search_path or Path(cls.title() + ".toml")
+    def settings_search_path(cls) -> Path:
+        return cls.__config__.settings_search_path or Path(cls.title() + ".toml")
 
     @classmethod
     def commands(cls) -> Mapping[Type[Command], Sequence[Type[Command]]]:
@@ -204,19 +204,19 @@ class Program(BaseModel):
 
     @classmethod
     def init(cls: Type[_T_Program], *args: str) -> _T_Program:
-        config_type = cls.config_type()
-        if config_type and issubclass(config_type, LoggingConfiguration):
-            config_type.setup_memory_logging()
+        settings_type = cls.settings_type()
+        if settings_type and issubclass(settings_type, LoggingSettings):
+            settings_type.setup_memory_logging()
 
         prog_argparser, command_argparsers = cls._setup_argparsers()
-        parsed_args, command, config_overwrite_path = cls._parse_args(
+        parsed_args, command, settings_overwrite_path = cls._parse_args(
             prog_argparser, args
         )
-        config = cls._load_config(config_type, config_overwrite_path)
+        settings = cls._load_settings(settings_type, settings_overwrite_path)
 
         prog_obj: MutableMapping[str, object] = {"raw_args": tuple(args)}
-        if config_type:
-            prog_obj["config"] = config
+        if settings_type:
+            prog_obj["settings"] = settings
         if not command:
             prog_obj.update(parsed_args)
 
@@ -258,7 +258,7 @@ class Program(BaseModel):
             help="Show program's version string and exit.",
         )
 
-        if "config" in cls.__fields__:
+        if "settings" in cls.__fields__:
             g.add_argument(
                 "--config",
                 metavar="<CONFIG>",
@@ -304,7 +304,7 @@ class Program(BaseModel):
         }
 
         for field_name, field in model.__fields__.items():
-            if field_name in ["command", "config", "prog", "raw_args"]:
+            if field_name in ["command", "settings", "prog", "raw_args"]:
                 continue
 
             argument_group = getattr(field.field_info, "group", None)
@@ -392,29 +392,29 @@ class Program(BaseModel):
             if arg_value is not ...
         }
         command = cast(Type[Command], parsed_args.pop("command", None))
-        config_overwrite_path = cast(Path, parsed_args.pop("config", None))
-        return parsed_args, command, config_overwrite_path
+        settings_overwrite_path = cast(Path, parsed_args.pop("config", None))
+        return parsed_args, command, settings_overwrite_path
 
     @classmethod
-    def _load_config(
+    def _load_settings(
         cls,
-        config_type: Optional[Type[Configuration]],
-        config_overwrite_path: Optional[Path],
-    ) -> Optional[Configuration]:
-        if not config_type:
+        settings_type: Optional[Type[Settings]],
+        settings_overwrite_path: Optional[Path],
+    ) -> Optional[Settings]:
+        if not settings_type:
             return None
 
-        if config_overwrite_path:
-            config = config_type.load_from_config_file(config_overwrite_path)
+        if settings_overwrite_path:
+            settings = settings_type.load_from_settings_file(settings_overwrite_path)
         else:
-            config = config_type.find_and_load_from_config_file(
-                cls.config_search_path()
+            settings = settings_type.find_and_load_from_settings_file(
+                cls.settings_search_path()
             )
 
-        if isinstance(config, LoggingConfiguration):
-            config.setup_logging()
+        if isinstance(settings, LoggingSettings):
+            settings.setup_logging()
 
-        return config
+        return settings
 
     def log(self) -> None:
         cls = type(self)
@@ -425,7 +425,7 @@ class Program(BaseModel):
         if not self.command:
             _LOGGER.debug("  Command: {}", None)
             for field_name, field_value in self.dict(
-                exclude={"command", "config", "raw_args"}
+                exclude={"command", "settings", "raw_args"}
             ).items():
                 _LOGGER.debug("    {} = {}", field_name, field_value)
 
@@ -438,10 +438,10 @@ class Program(BaseModel):
             for field_name, field_value in self.command.dict(exclude={"prog"}).items():
                 _LOGGER.debug("    {} = {}", field_name, field_value)
 
-        config = cast(Optional[Configuration], getattr(self, "config", None))
-        if config:
-            _LOGGER.debug("  Config: {}", get_qualified_name(type(config)))
-            for line in str(config).splitlines()[1:-1]:
+        settings = cast(Optional[Settings], getattr(self, "settings", None))
+        if settings:
+            _LOGGER.debug("  Settings: {}", get_qualified_name(type(settings)))
+            for line in str(settings).splitlines()[1:-1]:
                 _LOGGER.debug("  {}", line)
 
     def run(self) -> None:

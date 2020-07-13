@@ -22,11 +22,11 @@ from typing import Iterator
 from _pytest.config import Config
 from pytest import fixture
 
-from nasty_utils import LoggingConfiguration
+from nasty_utils import LoggingSettings
 
 
 def pytest_configure(config: Config) -> None:
-    LoggingConfiguration.setup_pytest_logging(config)
+    LoggingSettings.setup_pytest_logging(config)
 
 
 @fixture

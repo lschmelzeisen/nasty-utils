@@ -20,11 +20,11 @@ from logging.handlers import MemoryHandler
 from sys import maxsize
 from typing import Mapping
 
-from _pytest.config import Config as PytestConfig
+from _pytest.config import Config
 
-from nasty_utils.configuration import Configuration
+from nasty_utils.settings import Settings
 
-DEFAULT_LOGGING_CONFIGURATION: Mapping[str, object] = {
+DEFAULT_LOGGING_SETTINGS: Mapping[str, object] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -71,8 +71,8 @@ DEFAULT_LOGGING_CONFIGURATION: Mapping[str, object] = {
 }
 
 
-class LoggingConfiguration(Configuration):
-    logging: dict = dict(DEFAULT_LOGGING_CONFIGURATION)  # type: ignore
+class LoggingSettings(Settings):
+    logging: dict = dict(DEFAULT_LOGGING_SETTINGS)  # type: ignore
 
     @classmethod
     def setup_memory_logging(cls) -> None:
@@ -100,7 +100,7 @@ class LoggingConfiguration(Configuration):
     @classmethod
     def setup_pytest_logging(
         cls,
-        pytest_config: PytestConfig,
+        pytest_config: Config,
         *,
         level: str = "DEBUG",
         format_: str = (
