@@ -17,6 +17,8 @@
 from pathlib import Path
 from typing import Optional
 
+from _pytest.capture import CaptureFixture
+from overrides import overrides
 from pydantic import ValidationError
 from pytest import raises
 
@@ -45,7 +47,13 @@ class ArgProgram(Program):
     qux: bool
 
 
-def test_arg_program() -> None:
+class ArgRunProgram(ArgProgram):
+    @overrides
+    def run(self) -> None:
+        print(self.bar * self.baz)
+
+
+def test_arg_program(capsys: CaptureFixture) -> None:
     with raises(SystemExit):  # Prints version string (for manual inspection).
         ArgProgram.init("-v")
 
@@ -55,6 +63,7 @@ def test_arg_program() -> None:
     with raises(SystemExit):  # Argument baz-alias required.
         ArgProgram.init()
 
+    capsys.readouterr()
     args = ("--baz-alias", "10")
     prog = ArgProgram.init(*args)
     assert tuple(prog.raw_args) == args
@@ -62,17 +71,22 @@ def test_arg_program() -> None:
     assert prog.bar == 5
     assert prog.baz == 10
     assert not prog.qux
+    prog.run()
+    assert capsys.readouterr().out == ""
 
     with raises(SystemExit):  # Argument baz-alias validation failed.
         ArgProgram.init("--baz-alias", "ten")
 
+    capsys.readouterr()
     args = ("--foo", "fool", "-b", "6", "--baz-alias", "15", "--qux")
-    prog = ArgProgram.init(*args)
+    prog = ArgRunProgram.init(*args)
     assert tuple(prog.raw_args) == args
     assert prog.foo == "fool"
     assert prog.bar == 6
     assert prog.baz == 15
     assert prog.qux
+    prog.run()
+    assert capsys.readouterr().out == "90\n"
 
 
 class ArgCommand(Command):
@@ -161,25 +175,35 @@ def test_subcommand_program() -> None:
     assert isinstance(prog.command, QuxCommand)
 
 
-class ParenCommand(Command):
+class ParentCommand(Command):
     in_file: Path
     out_file: Optional[Path] = None
 
+    @overrides
+    def run(self) -> None:
+        print(ParentCommand.__name__)
 
-class ChildCommand(ParenCommand):
+
+class ChildCommand(ParentCommand):
     test_file: Path
+
+    @overrides
+    def run(self) -> None:
+        print(ChildCommand.__name__)
 
 
 class SubclassCommandProgram(Program):
     class Config(ProgramConfig):
-        commands = [ParenCommand, ChildCommand]
+        commands = [ParentCommand, ChildCommand]
 
 
-def test_subclass_command_program() -> None:
-    prog = SubclassCommandProgram.init(ParenCommand.__name__, "--in_file", "in.file")
-    assert isinstance(prog.command, ParenCommand)
+def test_subclass_command_program(capsys: CaptureFixture) -> None:
+    prog = SubclassCommandProgram.init(ParentCommand.__name__, "--in_file", "in.file")
+    assert isinstance(prog.command, ParentCommand)
     assert prog.command.in_file == Path("in.file")
     assert prog.command.out_file is None
+    prog.run()
+    assert capsys.readouterr().out == ParentCommand.__name__ + "\n"
 
     with raises(SystemExit):  # Argument in_file missing.
         SubclassCommandProgram.init(ChildCommand.__name__, "--test_file", "test.file")
@@ -191,6 +215,8 @@ def test_subclass_command_program() -> None:
     assert prog.command.in_file == Path("in.file")
     assert prog.command.out_file is None
     assert prog.command.test_file == Path("test.file")
+    prog.run()
+    assert capsys.readouterr().out == ChildCommand.__name__ + "\n"
 
 
 class MySettings(Settings):
@@ -226,3 +252,12 @@ def test_my_settings_program(tmp_cwd: Path) -> None:
     prog = MySettingsProgram.init("--config", str(settings_file))
     assert isinstance(prog.settings, MySettings)
     assert prog.settings.n == 10.0
+
+
+class SettingsMisuseProgram(Program):
+    settings: int
+
+
+def test_settings_misuse_program() -> None:
+    with raises(TypeError):
+        SettingsMisuseProgram.init()

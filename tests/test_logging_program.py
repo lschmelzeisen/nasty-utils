@@ -21,6 +21,7 @@ from time import sleep
 from typing import Iterator, cast
 
 from overrides import overrides
+from pytest import mark
 from tqdm import tqdm
 
 import nasty_utils
@@ -76,6 +77,7 @@ class MyProgram(Program):
     settings: LoggingSettings
 
 
+@mark.skip
 def test_logging() -> None:
     p = Process(target=lambda: MyProgram.init("my", "-a", "5").run())
     p.start()
