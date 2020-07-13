@@ -49,11 +49,10 @@ from nasty_utils.program import (
     Program,
     ProgramConfig,
 )
-from nasty_utils.settings import Settings
+from nasty_utils.settings import Settings, SettingsConfig
 from nasty_utils.typing_ import checked_cast
 
 __all__ = [
-    "Settings",
     "date_range",
     "date_to_datetime",
     "date_to_timestamp",
@@ -84,6 +83,8 @@ __all__ = [
     "CommandConfig",
     "Program",
     "ProgramConfig",
+    "Settings",
+    "SettingsConfig",
     "checked_cast",
 ]
 

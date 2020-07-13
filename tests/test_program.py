@@ -30,6 +30,7 @@ from nasty_utils import (
     Program,
     ProgramConfig,
     Settings,
+    SettingsConfig,
 )
 
 _MY_GROUP = ArgumentGroup(name="My Group", description="my group desc")
@@ -50,7 +51,7 @@ class ArgProgram(Program):
 class ArgRunProgram(ArgProgram):
     @overrides
     def run(self) -> None:
-        print(self.bar * self.baz)
+        print(self.bar * self.baz)  # noqa: T001
 
 
 def test_arg_program(capsys: CaptureFixture) -> None:
@@ -181,7 +182,7 @@ class ParentCommand(Command):
 
     @overrides
     def run(self) -> None:
-        print(ParentCommand.__name__)
+        print(ParentCommand.__name__)  # noqa: T001
 
 
 class ChildCommand(ParentCommand):
@@ -189,7 +190,7 @@ class ChildCommand(ParentCommand):
 
     @overrides
     def run(self) -> None:
-        print(ChildCommand.__name__)
+        print(ChildCommand.__name__)  # noqa: T001
 
 
 class SubclassCommandProgram(Program):
@@ -220,6 +221,9 @@ def test_subclass_command_program(capsys: CaptureFixture) -> None:
 
 
 class MySettings(Settings):
+    class Config(SettingsConfig):
+        search_path = Path("settings.toml")
+
     n: float
 
 
@@ -234,7 +238,7 @@ def test_my_settings_program(tmp_cwd: Path) -> None:
     settings_dir = Path(".config")
     settings_dir.mkdir()
 
-    settings_file = settings_dir / (MySettingsProgram.__name__ + ".toml")
+    settings_file = settings_dir / "settings.toml"
     settings_file.touch()
 
     with raises(ValidationError):  # Settings contents are required.

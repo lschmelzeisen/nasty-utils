@@ -71,7 +71,6 @@ class MyProgram(Program):
         title = "myprog"
         version = nasty_utils.__version__
         description = "Description of my program."
-        settings_search_path = Path("nasty.toml")
         commands = [MyCommand]
 
     settings: LoggingSettings
@@ -79,7 +78,14 @@ class MyProgram(Program):
 
 @mark.skip
 def test_logging() -> None:
-    p = Process(target=lambda: MyProgram.init("my", "-a", "5").run())
+    settings_file = (
+        Path(nasty_utils.__file__).parent.parent.parent / ".config" / "nasty.toml"
+    )
+    p = Process(
+        target=lambda: MyProgram.init(
+            "my", "--config", str(settings_file), "-a", "5"
+        ).run()
+    )
     p.start()
     p.join()
 

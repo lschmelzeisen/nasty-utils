@@ -17,7 +17,15 @@
 from logging import getLogger
 from pathlib import Path
 from pprint import pformat
-from typing import AbstractSet, Mapping, Optional, Sequence, Type, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    AbstractSet,
+    Mapping,
+    Optional,
+    Sequence,
+    Type,
+    TypeVar,
+)
 
 import toml
 from overrides import overrides
@@ -32,8 +40,15 @@ _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 _T_Settings = TypeVar("_T_Settings", bound="Settings")
 
 
+class SettingsConfig(BaseConfig):
+    search_path: Optional[Path] = None
+
+
 class Settings(BaseModel):
-    class Config(BaseConfig):
+    if TYPE_CHECKING:
+        __config__: Type[SettingsConfig] = SettingsConfig
+
+    class Config(SettingsConfig):
         validate_all = True
         extra = Extra.forbid
         allow_mutation = False
@@ -86,7 +101,10 @@ class Settings(BaseModel):
         return True
 
     @classmethod
-    def find_settings_file(cls, search_path: Path) -> Path:
+    def find_settings_file(cls) -> Path:
+        if not cls.__config__.search_path:
+            raise NotImplementedError("Requires to implement Settings.search_path().")
+
         settings_dirs = [Path.cwd() / ".config"]
         while settings_dirs[-1].parent.parent != settings_dirs[-1].parent:
             settings_dirs.append(settings_dirs[-1].parent.parent / ".config")
@@ -95,31 +113,29 @@ class Settings(BaseModel):
         settings_dirs.extend(XDG_CONFIG_DIRS)
 
         for settings_dir in settings_dirs:
-            path = settings_dir / search_path
+            path = settings_dir / cls.__config__.search_path
             if path.exists():
                 return path
 
         raise FileNotFoundError(
-            f"Could not find settings file '{search_path}'. Checked at the "
-            "following locations:\n"
+            f"Could not find settings file '{cls.__config__.search_path}'. Checked at "
+            f"the following locations:\n"
             + "\n".join("- " + str(settings_dir) for settings_dir in settings_dirs)
         )
 
     @classmethod
-    def find_and_load_from_settings_file(
-        cls: Type[_T_Settings], search_path: Path
-    ) -> _T_Settings:
-        try:
-            settings_file = cls.find_settings_file(search_path)
-        except FileNotFoundError:
-            if cls.can_default():
+    def find_and_load_from_settings_file(cls: Type[_T_Settings]) -> _T_Settings:
+        if not cls.can_default():
+            settings_file = cls.find_settings_file()
+        else:
+            try:
+                settings_file = cls.find_settings_file()
+            except FileNotFoundError:
                 _LOGGER.debug(
                     "Loading default {} since no settings file was found...",
                     cls.__name__,
                 )
                 return cls()
-            else:
-                raise
         return cls.load_from_settings_file(settings_file)
 
     @classmethod

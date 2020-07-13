@@ -127,11 +127,11 @@ class Command(BaseModel):
     if TYPE_CHECKING:
         __config__: Type[CommandConfig] = CommandConfig
 
-    prog: "Program"
-
     class Config(CommandConfig):
         validate_all = True
         extra = Extra.forbid
+
+    prog: "Program"
 
     @classmethod
     def title(cls) -> str:
@@ -145,7 +145,6 @@ class ProgramConfig(BaseConfig):
     title: Optional[str] = None  # type: ignore
     version: Optional[str] = None
     description: Optional[str] = None
-    settings_search_path: Optional[Path] = None
     commands: Union[Sequence[Type[Command]], Mapping[Type[Command], Type[Command]]] = []
 
 
@@ -158,12 +157,12 @@ class Program(BaseModel):
     if TYPE_CHECKING:
         __config__: Type[ProgramConfig] = ProgramConfig
 
-    raw_args: Sequence[str] = ()
-    command: Optional[Command] = None
-
     class Config(ProgramConfig):
         validate_all = True
         extra = Extra.forbid
+
+    raw_args: Sequence[str] = ()
+    command: Optional[Command] = None
 
     @classmethod
     def title(cls) -> str:
@@ -187,10 +186,6 @@ class Program(BaseModel):
             "If field `settings` exists it must be annotated with a type that "
             "subclasses nasty_utils.Settings."
         )
-
-    @classmethod
-    def settings_search_path(cls) -> Path:
-        return cls.__config__.settings_search_path or Path(cls.title() + ".toml")
 
     @classmethod
     def commands(cls) -> Mapping[Type[Command], Sequence[Type[Command]]]:
@@ -404,12 +399,11 @@ class Program(BaseModel):
         if not settings_type:
             return None
 
-        if settings_overwrite_path:
-            settings = settings_type.load_from_settings_file(settings_overwrite_path)
-        else:
-            settings = settings_type.find_and_load_from_settings_file(
-                cls.settings_search_path()
-            )
+        settings = (
+            settings_type.load_from_settings_file(settings_overwrite_path)
+            if settings_overwrite_path
+            else settings_type.find_and_load_from_settings_file()
+        )
 
         if isinstance(settings, LoggingSettings):
             settings.setup_logging()

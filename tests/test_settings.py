@@ -21,7 +21,7 @@ from typing import Mapping, Optional, Sequence
 from pydantic import SecretStr
 from pytest import raises
 
-from nasty_utils import ColoredBraceStyleAdapter, Settings
+from nasty_utils import ColoredBraceStyleAdapter, Settings, SettingsConfig
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
@@ -32,12 +32,17 @@ def test_find_settings_file(tmp_cwd: Path) -> None:
         settings_dir.mkdir(exist_ok=True)
 
         for name in [Path("conf"), Path("mysettings.toml")]:
+
+            class FindSettings(Settings):
+                class Config(SettingsConfig):
+                    search_path = directory / name
+
             with raises(FileNotFoundError):
-                Settings.find_settings_file(directory / name)
+                FindSettings.find_settings_file()
 
             (settings_dir / name).touch()
 
-            assert Settings.find_settings_file(directory / name)
+            assert FindSettings.find_settings_file()
 
 
 class MyInnerSettings(Settings):
@@ -129,6 +134,9 @@ def test_inheriting_settings() -> None:
 
 
 class PathSettings(Settings):
+    class Config(SettingsConfig):
+        search_path = Path("settings.toml")
+
     path: Path
 
 
@@ -144,7 +152,7 @@ def test_path_settings(tmp_cwd: Path) -> None:
     settings_dir.mkdir()
     (settings_dir / "settings.toml").write_text(settings_contents, encoding="UTF-8")
 
-    settings = PathSettings.find_and_load_from_settings_file(Path("settings.toml"))
+    settings = PathSettings.find_and_load_from_settings_file()
     assert settings.path.name == "test.path"
     assert settings.path.parent.name == ".config"
     assert settings.path.parent.parent.resolve() == tmp_cwd
@@ -193,20 +201,24 @@ def test_inner_sequence_settings() -> None:
 
 
 class CanNotDefaultSettings(Settings):
+    class Config(SettingsConfig):
+        search_path = Path("settings.toml")
+
     foo: int
 
 
 class CanDefaultSettings(Settings):
+    class Config(SettingsConfig):
+        search_path = Path("settings.toml")
+
     foo: int = 5
 
 
 def test_can_default_settings() -> None:
-    path = Path("settings.toml")
-
     assert not CanNotDefaultSettings.can_default()
     with raises(FileNotFoundError):
-        CanNotDefaultSettings.find_and_load_from_settings_file(path)
+        CanNotDefaultSettings.find_and_load_from_settings_file()
 
     assert CanDefaultSettings.can_default()
-    settings = CanDefaultSettings.find_and_load_from_settings_file(path)
+    settings = CanDefaultSettings.find_and_load_from_settings_file()
     assert settings.foo == 5
