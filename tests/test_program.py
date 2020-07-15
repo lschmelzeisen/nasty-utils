@@ -25,8 +25,6 @@ from pytest import raises
 from nasty_utils import (
     Argument,
     ArgumentGroup,
-    Command,
-    CommandConfig,
     Program,
     ProgramConfig,
     Settings,
@@ -36,7 +34,7 @@ from nasty_utils import (
 _MY_GROUP = ArgumentGroup(name="My Group", description="my group desc")
 
 
-class ArgProgram(Program):
+class ArgParsingProgram(Program):
     class Config(ProgramConfig):
         title = "myprog"
         version = "0.0.0"
@@ -48,26 +46,27 @@ class ArgProgram(Program):
     qux: bool
 
 
-class ArgRunProgram(ArgProgram):
+class ChildArgParsingProgram(ArgParsingProgram):
     @overrides
     def run(self) -> None:
         print(self.bar * self.baz)  # noqa: T001
 
 
-def test_arg_program(capsys: CaptureFixture) -> None:
+def test_arg_parsing(capsys: CaptureFixture) -> None:
     with raises(SystemExit):  # Prints version string (for manual inspection).
-        ArgProgram.init("-v")
+        ArgParsingProgram.init("-v")
 
     with raises(SystemExit):  # Print help message (for manual inspection).
-        ArgProgram.init("-h")
+        ArgParsingProgram.init("-h")
 
     with raises(SystemExit):  # Argument baz-alias required.
-        ArgProgram.init()
+        ArgParsingProgram.init()
 
     capsys.readouterr()
     args = ("--baz-alias", "10")
-    prog = ArgProgram.init(*args)
+    prog = ArgParsingProgram.init(*args)
     assert tuple(prog.raw_args) == args
+    assert isinstance(prog, ArgParsingProgram)
     assert prog.foo == "foo"
     assert prog.bar == 5
     assert prog.baz == 10
@@ -76,12 +75,13 @@ def test_arg_program(capsys: CaptureFixture) -> None:
     assert capsys.readouterr().out == ""
 
     with raises(SystemExit):  # Argument baz-alias validation failed.
-        ArgProgram.init("--baz-alias", "ten")
+        ArgParsingProgram.init("--baz-alias", "ten")
 
     capsys.readouterr()
     args = ("--foo", "fool", "-b", "6", "--baz-alias", "15", "--qux")
-    prog = ArgRunProgram.init(*args)
+    prog = ChildArgParsingProgram.init(*args)
     assert tuple(prog.raw_args) == args
+    assert isinstance(prog, ChildArgParsingProgram)
     assert prog.foo == "fool"
     assert prog.bar == 6
     assert prog.baz == 15
@@ -90,134 +90,117 @@ def test_arg_program(capsys: CaptureFixture) -> None:
     assert capsys.readouterr().out == "90\n"
 
 
-class ArgCommand(Command):
-    foo: int
-
-
-class ArgCommandProgram(Program):
-    class Config(ProgramConfig):
-        commands = [ArgCommand]
-
-
-def test_arg_command_program() -> None:
-    with raises(SystemExit):  # Argument foo required.
-        ArgCommandProgram.init("MyCommand")
-
-    prog = ArgCommandProgram.init(ArgCommand.__name__, "--foo", "3")
-    assert isinstance(prog.command, ArgCommand)
-    assert prog.command.foo == 3
-
-    with raises(SystemExit):  # Argument foo validation error.
-        ArgCommandProgram.init(ArgCommand.__name__, "--foo", "three")
-
-
-class FooCommand(Command):
-    prog: "SubcommandProgram"
-
-    class Config(CommandConfig):
-        title = "foo"
-        aliases = ("f",)
-
-
-class BarCommand(Command):
-    class Config(CommandConfig):
-        title = "bar"
-        aliases = ("b",)
-
-
-class BazCommand(Command):
-    class Config(CommandConfig):
-        title = "baz"
-        aliases = ("b",)
-
-
-class QuxCommand(Command):
-    class Config(CommandConfig):
-        title = "qux"
-        aliases = ("q", "u")
-
-
-class SubcommandProgram(Program):
-    class Config(ProgramConfig):
-        commands = {
-            FooCommand: Command,
-            BarCommand: Command,
-            BazCommand: BarCommand,
-            QuxCommand: BarCommand,
-        }
-
-
-FooCommand.update_forward_refs()
-
-
-def test_subcommand_program() -> None:
-    with raises(SystemExit):  # Print help message (for manual inspection).
-        SubcommandProgram.init("-h")
-
-    with raises(SystemExit):  # Print help message (for manual inspection).
-        SubcommandProgram.init("foo", "-h")
-
-    with raises(SystemExit):  # Print help message (for manual inspection).
-        SubcommandProgram.init("bar", "-h")
-
-    with raises(SystemExit):  # Command required.
-        SubcommandProgram.init()
-
-    prog = SubcommandProgram.init("foo")
-    assert isinstance(prog.command, FooCommand)
-
-    with raises(SystemExit):  # Subcommand required.
-        SubcommandProgram.init("bar")
-
-    prog = SubcommandProgram.init("bar", "baz")
-    assert isinstance(prog.command, BazCommand)
-
-    prog = SubcommandProgram.init("bar", "qux")
-    assert isinstance(prog.command, QuxCommand)
-
-
-class ParentCommand(Command):
+class ParentProgram(Program):
     in_file: Path
     out_file: Optional[Path] = None
 
     @overrides
     def run(self) -> None:
-        print(ParentCommand.__name__)  # noqa: T001
+        print(ParentProgram.__name__)  # noqa: T001
 
 
-class ChildCommand(ParentCommand):
+class ChildProgram(ParentProgram):
     test_file: Path
 
     @overrides
     def run(self) -> None:
-        print(ChildCommand.__name__)  # noqa: T001
+        print(ChildProgram.__name__)  # noqa: T001
 
 
-class SubclassCommandProgram(Program):
+class InheritedSubprogramsProgram(Program):
     class Config(ProgramConfig):
-        commands = [ParentCommand, ChildCommand]
+        subprograms = (ParentProgram, ChildProgram)
 
 
-def test_subclass_command_program(capsys: CaptureFixture) -> None:
-    prog = SubclassCommandProgram.init(ParentCommand.__name__, "--in_file", "in.file")
-    assert isinstance(prog.command, ParentCommand)
-    assert prog.command.in_file == Path("in.file")
-    assert prog.command.out_file is None
+def test_inherited_subprograms(capsys: CaptureFixture) -> None:
+    with raises(SystemExit):  # Command required.
+        InheritedSubprogramsProgram.init()
+
+    with raises(SystemExit):  # Argument in_file required.
+        ParentProgram.init(ParentProgram.title())
+
+    prog = InheritedSubprogramsProgram.init(
+        ParentProgram.__name__, "--in_file", "in.file"
+    )
+    assert isinstance(prog, ParentProgram)
+    assert prog.in_file == Path("in.file")
+    assert prog.out_file is None
     prog.run()
-    assert capsys.readouterr().out == ParentCommand.__name__ + "\n"
+    assert capsys.readouterr().out == ParentProgram.__name__ + "\n"
 
     with raises(SystemExit):  # Argument in_file missing.
-        SubclassCommandProgram.init(ChildCommand.__name__, "--test_file", "test.file")
+        InheritedSubprogramsProgram.init(
+            ChildProgram.__name__, "--test_file", "test.file"
+        )
 
-    prog = SubclassCommandProgram.init(
-        ChildCommand.__name__, "--in_file", "in.file", "--test_file", "test.file"
+    prog = InheritedSubprogramsProgram.init(
+        ChildProgram.__name__, "--in_file", "in.file", "--test_file", "test.file"
     )
-    assert isinstance(prog.command, ChildCommand)
-    assert prog.command.in_file == Path("in.file")
-    assert prog.command.out_file is None
-    assert prog.command.test_file == Path("test.file")
+    assert isinstance(prog, ChildProgram)
+    assert prog.in_file == Path("in.file")
+    assert prog.out_file is None
+    assert prog.test_file == Path("test.file")
     prog.run()
-    assert capsys.readouterr().out == ChildCommand.__name__ + "\n"
+    assert capsys.readouterr().out == ChildProgram.__name__ + "\n"
+
+
+class FooProgram(Program):
+    class Config(ProgramConfig):
+        title = "foo"
+        aliases = ("f",)
+
+
+class BazProgram(Program):
+    class Config(ProgramConfig):
+        title = "baz"
+        aliases = ("b",)
+
+
+class QuxProgram(Program):
+    class Config(ProgramConfig):
+        title = "qux"
+        aliases = ("q", "u")
+
+
+class BarProgram(Program):
+    class Config(ProgramConfig):
+        title = "bar"
+        aliases = ("b",)
+        subprograms = (BazProgram, QuxProgram)
+
+
+class NestedSubprogramsProgram(Program):
+    class Config(ProgramConfig):
+        subprograms = (FooProgram, BarProgram)
+
+
+def test_nested_subprograms() -> None:
+    with raises(SystemExit):  # Print help message (for manual inspection).
+        NestedSubprogramsProgram.init("-h")
+
+    with raises(SystemExit):  # Print help message (for manual inspection).
+        NestedSubprogramsProgram.init("foo", "-h")
+
+    with raises(SystemExit):  # Print help message (for manual inspection).
+        NestedSubprogramsProgram.init("bar", "-h")
+
+    with raises(SystemExit):  # Command required.
+        NestedSubprogramsProgram.init()
+
+    prog = NestedSubprogramsProgram.init("foo")
+    assert isinstance(prog, FooProgram)
+
+    with raises(SystemExit):  # Subcommand required.
+        NestedSubprogramsProgram.init("bar")
+
+    prog = NestedSubprogramsProgram.init("bar", "baz")
+    assert isinstance(prog, BazProgram)
+
+    prog = NestedSubprogramsProgram.init("bar", "q")
+    assert isinstance(prog, QuxProgram)
+
+    prog = NestedSubprogramsProgram.init("bar", "u")
+    assert isinstance(prog, QuxProgram)
 
 
 class FooSettings(Settings):
@@ -231,7 +214,7 @@ class SettingsProgram(Program):
     settings: FooSettings
 
 
-def test_settings_program(tmp_cwd: Path) -> None:
+def test_settings(tmp_cwd: Path) -> None:
     with raises(FileNotFoundError):  # Settings file does not exist.
         SettingsProgram.init()
 
@@ -247,7 +230,9 @@ def test_settings_program(tmp_cwd: Path) -> None:
     settings_file.write_text("n = 3.14", encoding="UTF-8")
 
     prog = SettingsProgram.init()
+    assert isinstance(prog, SettingsProgram)
     assert isinstance(prog.settings, FooSettings)
+    assert prog.settings.settings_file
     assert prog.settings.settings_file.resolve() == settings_file.resolve()
     assert prog.settings.n == 3.14
 
@@ -255,7 +240,9 @@ def test_settings_program(tmp_cwd: Path) -> None:
     settings_file.write_text("n = 10.0", encoding="UTF-8")
 
     prog = SettingsProgram.init("--settings", str(settings_file))
+    assert isinstance(prog, SettingsProgram)
     assert isinstance(prog.settings, FooSettings)
+    assert prog.settings.settings_file
     assert prog.settings.settings_file.resolve() == settings_file.resolve()
     assert prog.settings.n == 10.0
 
@@ -272,11 +259,10 @@ class MultipleSettingsProgram(Program):
 
     @overrides
     def run(self) -> None:
-        super().run()
-        print(self.foo.n * self.bar.m)
+        print(self.foo.n * self.bar.m)  # noqa: T001
 
 
-def test_multiple_settings_program(tmp_path: Path, capsys: CaptureFixture) -> None:
+def test_multiple_settings(tmp_path: Path, capsys: CaptureFixture) -> None:
     with raises(SystemExit):
         MultipleSettingsProgram.init("-h")
 
@@ -290,10 +276,13 @@ def test_multiple_settings_program(tmp_path: Path, capsys: CaptureFixture) -> No
     prog = MultipleSettingsProgram.init(
         "--foo", str(foo_settings_file), "-b", str(bar_settings_file)
     )
+    assert isinstance(prog, MultipleSettingsProgram)
     assert isinstance(prog.foo, FooSettings)
+    assert prog.foo.settings_file
     assert prog.foo.settings_file.resolve() == foo_settings_file.resolve()
     assert prog.foo.n == 3.5
     assert isinstance(prog.bar, BarSettings)
+    assert prog.bar.settings_file
     assert prog.bar.settings_file.resolve() == bar_settings_file.resolve()
     assert prog.bar.m == 4
     prog.run()

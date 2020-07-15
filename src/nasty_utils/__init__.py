@@ -44,8 +44,6 @@ from nasty_utils.program import (
     Argument,
     ArgumentGroup,
     ArgumentInfo,
-    Command,
-    CommandConfig,
     Program,
     ProgramConfig,
 )
@@ -79,8 +77,6 @@ __all__ = [
     "Argument",
     "ArgumentGroup",
     "ArgumentInfo",
-    "Command",
-    "CommandConfig",
     "Program",
     "ProgramConfig",
     "Settings",

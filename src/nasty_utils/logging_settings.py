@@ -18,7 +18,7 @@ from logging import NOTSET, getLogger
 from logging.config import dictConfig
 from logging.handlers import MemoryHandler
 from sys import maxsize
-from typing import Mapping
+from typing import ClassVar, Mapping, Optional
 
 from _pytest.config import Config
 
@@ -72,30 +72,38 @@ DEFAULT_LOGGING_SETTINGS: Mapping[str, object] = {
 
 
 class LoggingSettings(Settings):
+    memory_handler: ClassVar[Optional[MemoryHandler]] = None
+
     logging: dict = dict(DEFAULT_LOGGING_SETTINGS)  # type: ignore
 
     @classmethod
-    def setup_memory_logging(cls) -> None:
+    def setup_memory_logging_handler(cls) -> None:
+        if cls.memory_handler:
+            return
+
+        cls.memory_handler = MemoryHandler(capacity=maxsize, flushLevel=maxsize)
+
         root = getLogger()
         root.setLevel(NOTSET)
-        root.addHandler(MemoryHandler(capacity=maxsize, flushLevel=maxsize))
+        root.addHandler(cls.memory_handler)
+
+    @classmethod
+    def remove_memory_logging_handler(cls) -> None:
+        if cls.memory_handler:
+            root = getLogger()
+            root.removeHandler(cls.memory_handler)
+            cls.memory_handler = None
 
     def setup_logging(self) -> None:
         root = getLogger()
 
-        buffer = []
-        for handler in root.handlers:
-            if isinstance(handler, MemoryHandler):
-                buffer = handler.buffer
-                root.removeHandler(handler)
-                break
-
         dictConfig(dict(self.logging))
 
-        for record in buffer:
-            for handler in root.handlers:
-                if record.levelno >= handler.level:
-                    handler.handle(record)
+        if self.memory_handler:
+            for record in self.memory_handler.buffer:
+                for handler in root.handlers:
+                    if record.levelno >= handler.level:
+                        handler.handle(record)
 
     @classmethod
     def setup_pytest_logging(

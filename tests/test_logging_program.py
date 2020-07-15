@@ -28,8 +28,6 @@ import nasty_utils
 from nasty_utils import (
     Argument,
     ColoredBraceStyleAdapter,
-    Command,
-    CommandConfig,
     LoggingSettings,
     Program,
     ProgramConfig,
@@ -38,10 +36,11 @@ from nasty_utils import (
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
 
-class MyCommand(Command):
-    class Config(CommandConfig):
-        title = "my"
-        description = "Description of my command."
+class MyProgram(Program):
+    class Config(ProgramConfig):
+        title = "myprog"
+        version = nasty_utils.__version__
+        description = "Description of my program."
 
     arg: int = Argument(0, short_alias="a", description="Description of my arg.")
     settings: LoggingSettings
@@ -67,23 +66,16 @@ class MyCommand(Command):
         _LOGGER.critical("critical")
 
 
-class MyProgram(Program):
-    class Config(ProgramConfig):
-        title = "myprog"
-        version = nasty_utils.__version__
-        description = "Description of my program."
-        commands = [MyCommand]
-
-
 @mark.skip
 def test_logging() -> None:
     settings_file = (
         Path(nasty_utils.__file__).parent.parent.parent / ".config" / "nasty.toml"
     )
+
+    # Starting in separate process in case we want to run this as part of the normal
+    # tests, so that this does not destroy our logging setup.
     p = Process(
-        target=lambda: MyProgram.init(
-            "my", "--settings", str(settings_file), "-a", "5"
-        ).run()
+        target=lambda: MyProgram.init("--settings", str(settings_file), "-a", "5").run()
     )
     p.start()
     p.join()
