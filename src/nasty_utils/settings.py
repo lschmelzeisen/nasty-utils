@@ -56,39 +56,6 @@ class Settings(BaseModel):
 
     settings_file: Optional[FilePath]
 
-    # TODO: does probably not work with Path's in nested BaseModels.
-    @validator("*", pre=True)
-    def _expand_paths(
-        cls,  # noqa: N805
-        value: object,
-        values: Mapping[str, object],
-        field: ModelField,
-    ) -> object:
-        if not (safe_issubclass(field.type_, Path) and value):
-            return value
-
-        if isinstance(value, str) or isinstance(value, Path):
-            v = str(value)
-            if "{SETTINGS_DIR}" in v:
-                settings_file = values.get("settings_file")
-                if not settings_file:
-                    raise ValueError(
-                        "Can not use '{SETTINGS_DIR}' placeholder in settings not "
-                        "loaded from a file."
-                    )
-                v = v.replace("{SETTINGS_DIR}", str(Path(str(settings_file)).parent))
-            return v
-        elif isinstance(value, Mapping):
-            return {k: cls._expand_paths(v, values, field) for k, v in value.items()}
-        elif isinstance(value, Sequence):
-            return [cls._expand_paths(v, values, field) for v in value]
-        elif isinstance(value, AbstractSet):
-            return {cls._expand_paths(v, values, field) for v in value}
-        else:
-            raise TypeError(
-                f"Path-container of type '{type(value).__name__}' not implemented yet."
-            )
-
     @classmethod
     def can_default(cls) -> bool:
         for field in cls.__fields__.values():
@@ -147,6 +114,16 @@ class Settings(BaseModel):
     def load_from_str(
         cls: Type[_T_Settings], toml_str: str, *, settings_file: Optional[Path] = None,
     ) -> _T_Settings:
+        if "{SETTINGS_DIR}" in toml_str:
+            if not settings_file:
+                raise ValueError(
+                    "Can not use '{SETTINGS_DIR}' placeholder in settings not "
+                    "loaded from a file."
+                )
+            toml_str = toml_str.replace(
+                "{SETTINGS_DIR}", str(Path(str(settings_file)).parent)
+            )
+
         settings_dict = toml.loads(toml_str)
         settings_dict["settings_file"] = settings_file
         return cls.parse_obj(settings_dict)
