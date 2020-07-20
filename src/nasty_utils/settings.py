@@ -17,24 +17,14 @@
 from logging import getLogger
 from pathlib import Path
 from pprint import pformat
-from typing import (
-    TYPE_CHECKING,
-    AbstractSet,
-    Mapping,
-    Optional,
-    Sequence,
-    Type,
-    TypeVar,
-)
+from typing import TYPE_CHECKING, Optional, Type, TypeVar
 
 import toml
 from overrides import overrides
-from pydantic import BaseConfig, BaseModel, Extra, FilePath, validator
-from pydantic.fields import ModelField
+from pydantic import BaseConfig, BaseModel, Extra, FilePath
 from xdg import XDG_CONFIG_DIRS, XDG_CONFIG_HOME
 
 from nasty_utils.logging_ import ColoredBraceStyleAdapter
-from nasty_utils.typing_ import safe_issubclass
 
 _LOGGER = ColoredBraceStyleAdapter(getLogger(__name__))
 
