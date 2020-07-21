@@ -15,12 +15,23 @@
 #
 
 import re
-from enum import Enum
-from typing import Any, Sequence, Type, TypeVar
+from importlib import import_module
+from typing import Any, Sequence, Type
 
 
 def get_qualified_name(cls: Type[Any]) -> str:
     return cls.__module__ + "." + cls.__name__
+
+
+def lookup_qualified_name(name: str) -> object:
+    if "." not in name:
+        raise ValueError(f"Not a valid fully-qualified name: '{name}'")
+    module_name, member_name = name.rsplit(".", maxsplit=1)
+    module = import_module(module_name)
+    member = getattr(module, member_name, None)
+    if member is None:
+        raise ValueError(f"Could not find member '{member_name}' in module '{module}'.")
+    return member
 
 
 # Adapted from: https://stackoverflow.com/a/37697078/211404
@@ -28,28 +39,3 @@ def camel_case_split(s: str, remove_underscores: bool = True) -> Sequence[str]:
     if remove_underscores:
         s = s.replace("_", "")
     return re.sub("([A-Z][a-z]+)", r" \1", re.sub("([A-Z]+)", r" \1", s)).split()
-
-
-_T_Enum = TypeVar("_T_Enum", bound=Enum)
-
-
-# def parse_enum_arg(
-#     s: str,
-#     enum_cls: Type[_T_Enum],
-#     *,
-#     ignore_case: bool = False,
-#     convert_camel_case_for_error: bool = False,
-# ) -> _T_Enum:
-#     for variant in enum_cls:
-#         if (ignore_case and variant.name.upper() == s.upper()) or (variant.name == s):
-#             return variant
-#
-#     enum_name = enum_cls.__name__
-#     if convert_camel_case_for_error:
-#         enum_name = " ".join(s.lower() for s in camel_case_split(enum_name))
-#
-#     valid_values = "', '".join(t.name for t in enum_cls)
-#
-#     raise ArgumentError(
-#         f"Can not parse {enum_name} '{s}'. Valid values are: '{valid_values}'."
-#     )

@@ -17,7 +17,15 @@
 import enum
 from enum import Enum
 
-from nasty_utils import camel_case_split
+from nasty_utils import camel_case_split, get_qualified_name, lookup_qualified_name
+
+
+def test_get_qualified_name() -> None:
+    assert get_qualified_name(Enum) == "enum.Enum"
+
+
+def test_lookup_qualified_name() -> None:
+    assert lookup_qualified_name("enum.Enum") == Enum
 
 
 def test_camel_case_split() -> None:
@@ -38,19 +46,3 @@ def test_camel_case_split() -> None:
 class MyEnum(Enum):
     A = enum.auto()
     B = enum.auto()
-
-
-# def test_parse_enum_arg() -> None:
-#     assert parse_enum_arg("A", MyEnum) == MyEnum.A
-#     assert parse_enum_arg("B", MyEnum) == MyEnum.B
-#
-#     with raises(ArgumentError) as e:
-#         parse_enum_arg("a", MyEnum)
-#     assert "MyEnum" in e.value.message
-#
-#     assert parse_enum_arg("a", MyEnum, ignore_case=True) == MyEnum.A
-#     assert parse_enum_arg("b", MyEnum, ignore_case=True) == MyEnum.B
-#
-#     with raises(ArgumentError) as e:
-#         parse_enum_arg("c", MyEnum, convert_camel_case_for_error=True)
-#     assert "my enum" in e.value.message

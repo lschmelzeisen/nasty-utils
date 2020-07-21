@@ -17,6 +17,7 @@
 from datetime import date, datetime, timezone
 
 from nasty_utils import (
+    advance_date_by_month,
     date_range,
     date_to_datetime,
     date_to_timestamp,
@@ -45,6 +46,15 @@ def test_parse_yyyy_mm() -> None:
 
 def test_format_yyyy_mm() -> None:
     assert format_yyyy_mm(date(2020, 3, 5)) == "2020-03"
+
+
+def test_advance_date_by_months() -> None:
+    assert advance_date_by_month(date(2020, 1, 1)) == date(2020, 2, 1)
+    assert advance_date_by_month(date(2020, 1, 3)) == date(2020, 2, 3)
+    assert advance_date_by_month(date(2020, 1, 31)) == date(2020, 2, 29)
+    assert advance_date_by_month(date(2019, 1, 31)) == date(2019, 2, 28)
+    assert advance_date_by_month(date(2020, 1, 31), num_months=2) == date(2020, 3, 31)
+    assert advance_date_by_month(date(2020, 1, 31), num_months=3) == date(2020, 4, 30)
 
 
 def test_date_range() -> None:

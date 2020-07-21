@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+from calendar import monthrange
 from datetime import date, datetime, timedelta, tzinfo
 from typing import Iterable, Optional
 
@@ -23,15 +24,6 @@ def parse_yyyy_mm_dd(s: str) -> date:
         return datetime.strptime(s, "%Y-%m-%d").date()
     except ValueError:
         return datetime.strptime(s, "%Y%m%d").date()
-
-
-# def parse_yyyy_mm_dd_arg(s: str) -> date:
-#     try:
-#         return parse_yyyy_mm_dd(s)
-#     except ValueError:
-#         raise ArgumentError(
-#             f"Can not parse date: '{s}'. Make sure it is in YYYY-MM-DD format."
-#         )
 
 
 def format_yyyy_mm_dd(d: date) -> str:
@@ -45,17 +37,23 @@ def parse_yyyy_mm(s: str) -> date:
         return datetime.strptime(s, "%Y%m").date()
 
 
-# def parse_yyyy_mm_arg(s: str) -> date:
-#     try:
-#         return parse_yyyy_mm(s)
-#     except ValueError:
-#         raise ArgumentError(
-#             f"Can not parse date: '{s}'. Make sure it is in YYYY-MM format."
-#         )
-
-
 def format_yyyy_mm(d: date) -> str:
     return d.strftime("%Y-%m")
+
+
+def advance_date_by_month(current_date: date, num_months: int = 1) -> date:
+    if num_months < 0:
+        raise ValueError(f"Negative number of months {num_months}.")
+
+    result = current_date.replace(day=1)
+    for _ in range(num_months):
+        # Advance by enough days to surely reach next month.
+        result = (result + timedelta(days=32)).replace(day=1)
+
+    last_day_of_month = monthrange(result.year, result.month)[1]
+    result = result.replace(day=min(current_date.day, last_day_of_month))
+
+    return result
 
 
 # Adapted from: https://stackoverflow.com/a/1060352/211404

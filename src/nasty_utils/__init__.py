@@ -14,9 +14,23 @@
 # limitations under the License.
 #
 
+
+__version__ = "dev"
+try:
+    from nasty_utils._version import __version__  # type: ignore
+except ImportError:
+    pass
+
+__version_info__ = tuple(
+    (int(part) if part.isdigit() else part)
+    for part in __version__.split(".", maxsplit=4)
+)
+
+
 import logging
 
-from nasty_utils.datetime_ import (  # parse_yyyy_mm_arg, parse_yyyy_mm_dd_arg,
+from nasty_utils.datetime_ import (
+    advance_date_by_month,
     date_range,
     date_to_datetime,
     date_to_timestamp,
@@ -39,7 +53,7 @@ from nasty_utils.logging_ import (
     TqdmAwareStreamHandler,
 )
 from nasty_utils.logging_settings import DEFAULT_LOGGING_SETTINGS, LoggingSettings
-from nasty_utils.misc import camel_case_split, get_qualified_name  # , parse_enum_arg
+from nasty_utils.misc import camel_case_split, get_qualified_name, lookup_qualified_name
 from nasty_utils.program import (
     Argument,
     ArgumentGroup,
@@ -51,15 +65,14 @@ from nasty_utils.settings import Settings, SettingsConfig
 from nasty_utils.typing_ import checked_cast, safe_issubclass
 
 __all__ = [
+    "advance_date_by_month",
     "date_range",
     "date_to_datetime",
     "date_to_timestamp",
     "format_yyyy_mm",
     "format_yyyy_mm_dd",
     "parse_yyyy_mm",
-    # "parse_yyyy_mm_arg",
     "parse_yyyy_mm_dd",
-    # "parse_yyyy_mm_dd_arg",
     "FileNotOnServerError",
     "download_file_with_progressbar",
     "sha256sum",
@@ -73,7 +86,7 @@ __all__ = [
     "LoggingSettings",
     "camel_case_split",
     "get_qualified_name",
-    # "parse_enum_arg",
+    "lookup_qualified_name",
     "Argument",
     "ArgumentGroup",
     "ArgumentInfo",
@@ -85,16 +98,6 @@ __all__ = [
     "safe_issubclass",
 ]
 
-__version__ = "dev"
-try:
-    from nasty_utils._version import __version__  # type: ignore
-except ImportError:
-    pass
-
-__version_info__ = tuple(
-    (int(part) if part.isdigit() else part)
-    for part in __version__.split(".", maxsplit=4)
-)
 
 # Don't show log messages in applications that don't configure logging.
 # See https://docs.python.org/3/howto/logging.html#configuring-logging-for-a-library

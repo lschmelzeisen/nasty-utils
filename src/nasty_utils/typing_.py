@@ -25,7 +25,7 @@ def checked_cast(type_: Type[_T_type], value: object) -> _T_type:
 
 
 def safe_issubclass(
-    cls: Type[Any], classinfo: Union[Type[Any], Tuple[Type[Any], ...]]
+    cls: Any, classinfo: Union[Type[Any], Tuple[Type[Any], ...]]
 ) -> bool:
     """Variant of issubclass that can be used with typing.Sequence, etc."""
     try:

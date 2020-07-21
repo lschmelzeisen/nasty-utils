@@ -167,9 +167,14 @@ class Program(BaseModel):
         parent_subparsers: Optional[_SubParsersAction] = None,
         prefix: str = "",
         depth: int = 0,
-        parent_version: str = "unversioned",
+        version_str: Optional[str] = None,
     ) -> Mapping[Type["Program"], ArgumentParser]:
-        version = cls.__config__.version or parent_version
+        prog = prefix + cls.title()
+        if cls.__config__.version:
+            version_str = prog + " " + cls.__config__.version
+        elif not version_str:
+            version_str = prog + " unversioned"
+
         if not parent_subparsers:
             argparser = ArgumentParser(
                 prog=cls.title(),
@@ -186,7 +191,7 @@ class Program(BaseModel):
                 add_help=False,
                 formatter_class=SingleMetavarHelpFormatter,
             )
-        cls._setup_args(argparser, version=version)
+        cls._setup_args(argparser, version_str=version_str)
 
         argparsers = {cls: argparser}
 
@@ -199,7 +204,7 @@ class Program(BaseModel):
                     "option."
                 ),
                 metavar="<" + metavar + ">",
-                prog=prefix + cls.title(),
+                prog=prog,
             )
             subparsers.required = True
 
@@ -207,16 +212,16 @@ class Program(BaseModel):
                 argparsers.update(
                     subprogram._setup_argparsers(
                         parent_subparsers=subparsers,
-                        prefix=prefix + cls.title() + " ",
+                        prefix=prog + " ",
                         depth=depth + 1,
-                        parent_version=version,
+                        version_str=version_str,
                     )
                 )
 
         return argparsers
 
     @classmethod
-    def _setup_args(cls, argparser: ArgumentParser, *, version: str) -> None:
+    def _setup_args(cls, argparser: ArgumentParser, *, version_str: str) -> None:
         argparser.set_defaults(program_type=cls)
 
         g = argparser.add_argument_group("General Arguments")
@@ -235,7 +240,7 @@ class Program(BaseModel):
             "-v",
             "--version",
             action="version",
-            version=f"{cls.title()} {version}",
+            version=version_str,
             help="Show program's version string and exit.",
         )
 
@@ -302,9 +307,9 @@ class Program(BaseModel):
 
         program_type = cast(Type[Program], parsed_args.pop("program_type"))
 
-        for field_name, field in program_type.__fields__.items():
+        for field in program_type.__fields__.values():
             if safe_issubclass(field.outer_type_, Settings):
-                settings_file = cast(Optional[Path], parsed_args.pop(field_name, None))
+                settings_file = cast(Optional[Path], parsed_args.pop(field.alias, None))
 
                 if settings_file:
                     settings = field.outer_type_.load_from_settings_file(settings_file)
@@ -314,7 +319,7 @@ class Program(BaseModel):
                 if isinstance(settings, LoggingSettings):
                     settings.setup_logging()
 
-                parsed_args[field_name] = settings
+                parsed_args[field.alias] = settings
 
         return parsed_args, program_type
 
