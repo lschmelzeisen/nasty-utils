@@ -18,9 +18,12 @@ from logging import NOTSET, getLogger
 from logging.config import dictConfig
 from logging.handlers import MemoryHandler
 from sys import maxsize
-from typing import ClassVar, Mapping, Optional
+from typing import TYPE_CHECKING, ClassVar, Mapping, Optional
 
-from _pytest.config import Config
+if TYPE_CHECKING:
+    from _pytest.config import Config
+else:
+    Config = object
 
 from nasty_utils.settings import Settings
 
