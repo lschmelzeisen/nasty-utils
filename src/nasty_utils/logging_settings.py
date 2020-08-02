@@ -17,6 +17,7 @@
 from logging import NOTSET, getLogger
 from logging.config import dictConfig
 from logging.handlers import MemoryHandler
+from os import getenv
 from sys import maxsize
 from typing import TYPE_CHECKING, ClassVar, Mapping, Optional
 
@@ -81,7 +82,7 @@ class LoggingSettings(Settings):
 
     @classmethod
     def setup_memory_logging_handler(cls) -> None:
-        if cls.memory_handler:
+        if cls._pytest_active() and cls.memory_handler:
             return
 
         cls.memory_handler = MemoryHandler(capacity=maxsize, flushLevel=maxsize)
@@ -92,12 +93,17 @@ class LoggingSettings(Settings):
 
     @classmethod
     def remove_memory_logging_handler(cls) -> None:
-        if cls.memory_handler:
-            root = getLogger()
-            root.removeHandler(cls.memory_handler)
-            cls.memory_handler = None
+        if cls._pytest_active() or not cls.memory_handler:
+            return
+
+        root = getLogger()
+        root.removeHandler(cls.memory_handler)
+        cls.memory_handler = None
 
     def setup_logging(self) -> None:
+        if self._pytest_active():
+            return
+
         root = getLogger()
 
         dictConfig(dict(self.logging))
@@ -107,6 +113,13 @@ class LoggingSettings(Settings):
                 for handler in root.handlers:
                     if record.levelno >= handler.level:
                         handler.handle(record)
+
+    @classmethod
+    def _pytest_active(cls) -> bool:
+        # Use this to check if the current code is executed as part of a pytest test
+        # run. In this case, all logging operations should become no-ops, in order to
+        # not modify the pytest logging configuration.
+        return bool(getenv("PYTEST_CURRENT_TEST"))
 
     @classmethod
     def setup_pytest_logging(
