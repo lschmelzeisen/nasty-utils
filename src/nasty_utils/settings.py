@@ -102,7 +102,10 @@ class Settings(BaseModel):
 
     @classmethod
     def load_from_str(
-        cls: Type[_T_Settings], toml_str: str, *, settings_file: Optional[Path] = None,
+        cls: Type[_T_Settings],
+        toml_str: str,
+        *,
+        settings_file: Optional[Path] = None,
     ) -> _T_Settings:
         if "{SETTINGS_DIR}" in toml_str:
             if not settings_file:
